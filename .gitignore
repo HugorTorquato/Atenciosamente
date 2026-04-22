@@ -1,0 +1,84 @@
+# ─── Build output ─────────────────────────────────────────────────────────
+# CMake generates everything under build/ when we use CMakePresets.
+# Never commit binaries, object files, or generated makefiles.
+build/
+build-*/
+out/
+*.o
+*.obj
+*.a
+*.so
+*.so.*
+*.dll
+*.dylib
+*.exe
+
+# CMake scratch files that sometimes end up outside build/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+install_manifest.txt
+
+# ─── vcpkg ────────────────────────────────────────────────────────────────
+# vcpkg.json is committed (it's our dependency manifest).
+# vcpkg_installed/ is the output — cached per-machine, never committed.
+vcpkg_installed/
+
+# ─── Test / coverage artifacts ────────────────────────────────────────────
+# Catch2 and ctest scratch
+Testing/
+*.gcov
+*.gcda
+*.gcno
+coverage/
+*.profraw
+*.profdata
+
+# ─── IDE / editor ─────────────────────────────────────────────────────────
+# VS Code: we COMMIT .vscode/ later if we add shared dev container config,
+# but cache/workspace files stay local.
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# CLion / JetBrains
+.idea/
+cmake-build-*/
+
+# Vim / Neovim
+*.swp
+*.swo
+*~
+.nvim/
+
+# ─── OS junk ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── Docker ───────────────────────────────────────────────────────────────
+# Local overrides stay local. Base compose file is committed.
+docker-compose.override.yml
+.env
+.env.local
+
+# ─── Flutter / Dart ───────────────────────────────────────────────────────
+# Flutter has its own .gitignore inside mobile/atenciosamente_app/
+# once `flutter create` runs. These are extra safety nets.
+mobile/**/.dart_tool/
+mobile/**/.flutter-plugins
+mobile/**/.flutter-plugins-dependencies
+mobile/**/.packages
+mobile/**/build/
+mobile/**/.pub-cache/
+mobile/**/.pub/
+
+# ─── Secrets ──────────────────────────────────────────────────────────────
+# Absolute rule: no secrets in the repo, ever.
+*.pem
+*.key
+*.crt
+secrets/

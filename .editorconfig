@@ -1,0 +1,48 @@
+# EditorConfig — https://editorconfig.org/
+# Enforces consistent formatting across all editors and IDEs.
+# VS Code, CLion, vim, and most modern editors read this automatically.
+
+root = true
+
+# ─── Defaults for everything ──────────────────────────────────────────────
+[*]
+charset = utf-8
+end_of_line = lf              # LF only, even on Windows (we're in WSL anyway)
+insert_final_newline = true   # POSIX tools expect it; git warns if absent
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# ─── C++ ──────────────────────────────────────────────────────────────────
+# 4 spaces, matches clang-format default we'll set up.
+[*.{cpp,hpp,h,cc,cxx,c}]
+indent_size = 4
+
+# ─── CMake ────────────────────────────────────────────────────────────────
+[{CMakeLists.txt,*.cmake}]
+indent_size = 2
+
+# ─── YAML / JSON ──────────────────────────────────────────────────────────
+# GitHub Actions, docker-compose, vcpkg.json all use 2-space indent by convention.
+[*.{yml,yaml,json}]
+indent_size = 2
+
+# ─── Markdown ─────────────────────────────────────────────────────────────
+# Trailing whitespace in Markdown can mean "hard line break" — don't trim.
+[*.md]
+trim_trailing_whitespace = false
+indent_size = 2
+
+# ─── Dart / Flutter ───────────────────────────────────────────────────────
+# Dart style guide mandates 2 spaces.
+[*.dart]
+indent_size = 2
+
+# ─── Makefile ─────────────────────────────────────────────────────────────
+# Makefiles REQUIRE tabs. Non-negotiable.
+[Makefile]
+indent_style = tab
+
+# ─── Shell scripts ────────────────────────────────────────────────────────
+[*.sh]
+indent_size = 2
