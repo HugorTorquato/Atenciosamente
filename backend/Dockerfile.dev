@@ -1,0 +1,45 @@
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    build-essential \
+    gcc-13 \
+    g++-13 \
+    cmake \
+    ninja-build \
+    git \
+    curl \
+    zip \
+    unzip \
+    pkg-config \
+    libssl-dev \
+    gdb \
+    clang-format \
+    clang-tidy \
+    sudo \
+  && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100 \
+  && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 100 \
+  && rm -rf /var/lib/apt/lists/*
+
+ARG USERNAME=dev
+ARG USER_UID=1000
+ARG USER_GID=1000
+RUN userdel --remove ubuntu 2>/dev/null || true \
+  && groupadd --gid ${USER_GID} ${USERNAME} \
+  && useradd --uid ${USER_UID} --gid ${USER_GID} --create-home --shell /bin/bash ${USERNAME} \
+  && echo "${USERNAME} ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/${USERNAME} \
+  && chmod 0440 /etc/sudoers.d/${USERNAME}
+
+ENV VCPKG_ROOT=/opt/vcpkg
+RUN git clone --depth 1 https://github.com/microsoft/vcpkg ${VCPKG_ROOT} \
+  && ${VCPKG_ROOT}/bootstrap-vcpkg.sh -disableMetrics \
+  && chown -R ${USERNAME}:${USERNAME} ${VCPKG_ROOT}
+
+ENV PATH="${VCPKG_ROOT}:${PATH}"
+
+USER ${USERNAME}
+WORKDIR /workspace
+
+CMD ["sleep", "infinity"]
