@@ -1,0 +1,21 @@
+---
+# Only check headers under src/ — prevents linting Crow/vcpkg internals.
+HeaderFilterRegex: "src/.*"
+
+# WarningsAsErrors: all enabled checks are treated as errors.
+WarningsAsErrors: "*"
+
+Checks: >-
+  clang-diagnostic-*,
+  clang-analyzer-*,
+  bugprone-*,
+  modernize-use-nullptr,
+  modernize-use-override,
+  modernize-use-default-member-init,
+  modernize-avoid-c-arrays,
+  performance-unnecessary-copy-initialization,
+  performance-unnecessary-value-param,
+  readability-else-after-return,
+  readability-const-return-type,
+  -bugprone-easily-swappable-parameters
+---

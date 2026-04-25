@@ -240,3 +240,23 @@ Running list of notable decisions, in order. New entries go at the bottom.
 | 2026-04-21 | C++20 | Modern enough for concepts/ranges/`<format>`, no C++23 compiler gaps |
 | 2026-04-21 | Deployment target: deferred | Premature choice; twelve-factor discipline keeps options open |
 | 2026-04-21 | CI: standard strictness, grows with phases | Avoid building full pipeline before there's code to test |
+| 2026-04-23 | Project lives at `~/projects/Atenciosamente` in WSL2 native fs | Windows→Linux bind mounts cause severe I/O overhead for CMake + vcpkg |
+| 2026-04-23 | `ubuntu:24.04` as Dockerfile.dev base | glibc required by vcpkg/Crow/libpqxx; ships gcc-13 + clang-18 via apt |
+| 2026-04-23 | Non-root `dev` user at UID 1000 | Matches WSL2 uid; prevents root-owned files on bind-mounted workspace |
+| 2026-04-23 | `userdel ubuntu` before creating `dev` | Ubuntu 24.04 image ships built-in `ubuntu` user at UID/GID 1000 — would collide |
+| 2026-04-23 | `ca-certificates` in apt block | Required for git HTTPS inside a minimal Ubuntu container |
+| 2026-04-23 | vcpkg cloned at `--depth 1` | Authoritative pin is `builtin-baseline` in vcpkg.json; full history not needed |
+| 2026-04-23 | `depends_on: service_healthy` + `pg_isready` healthcheck | Naive `depends_on` only waits for container start, not Postgres readiness |
+| 2026-04-23 | Named volume for Postgres data | Persists data across `docker compose down` without repo clutter |
+| 2026-04-23 | clangd for IntelliSense + cpptools for debugging only | clangd is superior for C++ navigation; `C_Cpp.intelliSenseEngine` disabled to prevent conflict |
+| 2026-04-25 | vcpkg manifest mode (`vcpkg.json`) | Portable, version-pinnable via `builtin-baseline`, integrates via CMake toolchain file |
+| 2026-04-25 | `find_package(... CONFIG REQUIRED)` for all vcpkg packages | vcpkg installs CMake config files; MODULE mode would need hand-written Find modules |
+| 2026-04-25 | Target-based CMake with `PRIVATE` compile flags | Modern CMake best practice; flags don't leak to consumers |
+| 2026-04-25 | `-Wall -Wextra -Wpedantic -Werror` from day one | Zero-warning discipline is easier to maintain from the start than to clean up later |
+| 2026-04-25 | CMakePresets `dev` (Debug + ASan/UBSan) and `ci` (Release) | Presets codify build config; dev and CI use identical commands |
+| 2026-04-25 | ASan + UBSan in `dev` preset via `ENABLE_SANITIZERS` option | Catches memory and undefined-behavior bugs at near-zero perf cost during development |
+| 2026-04-25 | `main.cpp` / `app.cpp` split | `main.cpp` is a thin entry point; `app.cpp` can link into a test target without pulling in `main()` |
+| 2026-04-25 | `backend/contexts/` directory | Learning notes (cmake.md, docker.md) kept alongside code for quick reference |
+| 2026-04-25 | Google style as `.clang-format` base, IndentWidth=4 | Well-defined baseline; 4-space indent overrides Google's 2-space |
+| 2026-04-25 | `anthropic.claude-code` added to devcontainer extensions | Claude Code available inside the container without manual install after rebuild |
+| 2026-04-25 | Phase 0 sub-task 2 complete: CMake + vcpkg + Crow hello world | `GET /` returns "hello"; builds and runs with `cmake --preset=dev && cmake --build --preset=dev` |
