@@ -19,6 +19,8 @@ find_package(libpqxx     CONFIG REQUIRED)
 add_executable(atenciosamente_server
     src/main.cpp
     src/app.cpp
+    src/notification_json.cpp
+    src/handlers/notifications.cpp
 )
 
 # All flags are PRIVATE: they apply only to this target, not to any consumer.

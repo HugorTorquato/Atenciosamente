@@ -260,3 +260,11 @@ Running list of notable decisions, in order. New entries go at the bottom.
 | 2026-04-25 | Google style as `.clang-format` base, IndentWidth=4 | Well-defined baseline; 4-space indent overrides Google's 2-space |
 | 2026-04-25 | `anthropic.claude-code` added to devcontainer extensions | Claude Code available inside the container without manual install after rebuild |
 | 2026-04-25 | Phase 0 sub-task 2 complete: CMake + vcpkg + Crow hello world | `GET /` returns "hello"; builds and runs with `cmake --preset=dev && cmake --build --preset=dev` |
+| 2026-04-26 | `created_at` as `std::chrono::system_clock::time_point` | Always UTC by the C++20 standard; avoids timezone ambiguity; serialized to ISO 8601 via `std::format` |
+| 2026-04-26 | `to_json` / `serialize_notifications` as free functions in `notification_json.hpp/cpp` | Separates serialization from the data type; unit-testable without HTTP or a running server |
+| 2026-04-26 | `std::span<const Notification>` for `serialize_notifications` parameter | Non-owning view; works with `vector`, `array`, or any contiguous range without coupling to ownership model |
+| 2026-04-26 | `format_timestamp` and `sample_notifications` in anonymous namespaces | Internal linkage; not part of the public API; avoids accidental ODR violations across TUs |
+| 2026-04-26 | Handler registered as a plain free function, not a lambda | Crow accepts any callable; named functions are easier to test and trace in stack dumps |
+| 2026-04-26 | Explicit `Content-Type: application/json` header on responses | Crow defaults to `text/plain`; clients rely on this header to parse the body correctly |
+| 2026-04-26 | Hardcoded sample data in Portuguese | Project is Brazilian; realistic content from day one |
+| 2026-04-26 | Phase 0 sub-task 3 complete: `/notifications` endpoint with hardcoded JSON | `GET /notifications` returns a JSON array; serialization split from handler for testability |
