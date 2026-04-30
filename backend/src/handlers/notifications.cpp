@@ -28,7 +28,7 @@ std::vector<Notification> sample_notifications()
 
 crow::response handle_get_notifications()
 {
-    const auto notifications = sample_notifications();
+    const auto exampleNotifications = sample_notifications();
 
     crow::response res;
     res.code = 200;
@@ -39,6 +39,6 @@ crow::response handle_get_notifications()
     // .dump() converts the nlohmann::json value to a UTF-8 string.
     // No argument = compact (no extra whitespace). Pass an int for indentation:
     // .dump(2) gives pretty-printed output — useful when debugging by hand.
-    res.body = serialize_notifications(notifications).dump();
+    res.body = serialize_notifications(exampleNotifications).dump();
     return res;
 }
