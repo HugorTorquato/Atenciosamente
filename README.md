@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Atenciosamente
 
 > A mobile app that sends thoughtful notifications. Side project, learning-focused.
@@ -73,3 +74,6 @@ the reasoning:
 ## License
 
 TBD.
+=======
+# Atenciosamente
+>>>>>>> 865ca82cd196d1b097cdfc85abe8d7d2eb0afdec
