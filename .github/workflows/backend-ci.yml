@@ -1,0 +1,122 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# LOCATION: this file must live at the REPO ROOT, not inside backend/.
+#   correct:   ~/projects/Atenciosamente/.github/workflows/backend-ci.yml
+#   incorrect: ~/projects/Atenciosamente/backend/.github/workflows/backend-ci.yml
+# ──────────────────────────────────────────────────────────────────────────────
+
+name: Backend CI
+
+# ── Triggers ──────────────────────────────────────────────────────────────────
+# paths: filter — CI only runs when backend source or this workflow file change.
+# A Flutter commit, a docs-only change, etc. will not trigger a backend build.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+
+# ── Concurrency ───────────────────────────────────────────────────────────────
+# If a new commit arrives while a run is in progress on the same branch,
+# cancel the old run. 'head_ref' is the PR branch name (stable across force-
+# pushes); 'ref' is the fallback for push events (e.g. refs/heads/main).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+# ── Permissions ───────────────────────────────────────────────────────────────
+# Least-privilege: the job only needs to read the repo. The vcpkg binary cache
+# uses ACTIONS_RUNTIME_TOKEN (a job-scoped credential separate from
+# GITHUB_TOKEN) so no extra permission is needed for cache writes.
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build and test (Release)
+    runs-on: ubuntu-24.04
+
+    env:
+      VCPKG_ROOT: /opt/vcpkg
+      # vcpkg binary cache — GHA backend.
+      # vcpkg automatically reads ACTIONS_CACHE_URL and ACTIONS_RUNTIME_TOKEN
+      # from the runner environment. "clear" resets any other configured
+      # sources; "x-gha,readwrite" enables read + write on the GHA cache API.
+      # On a cold run vcpkg builds from source and writes binaries to cache.
+      # On warm runs it restores them (~seconds vs ~3 minutes).
+      VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── 2. Build tools ───────────────────────────────────────────────────────
+      # ubuntu-24.04 runners ship with cmake 3.28, gcc-13, git, curl.
+      # We install the smaller set of tools that aren't pre-installed.
+      # bison/flex/autoconf are needed by some vcpkg port build scripts
+      # (libpq in particular) on a cold first run.
+      - name: Install build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            ninja-build \
+            pkg-config \
+            libssl-dev \
+            zip unzip \
+            bison flex \
+            autoconf automake libtool
+          # The runner may have several gcc versions. Make gcc-13 explicit so
+          # CMake's compiler detection always picks the right one.
+          sudo update-alternatives \
+            --install /usr/bin/gcc gcc /usr/bin/gcc-13 100
+          sudo update-alternatives \
+            --install /usr/bin/g++ g++ /usr/bin/g++-13 100
+
+      # ── 3. vcpkg ─────────────────────────────────────────────────────────────
+      # Clone at HEAD with --depth 1 (matches Dockerfile.dev) and install to
+      # /opt/vcpkg so VCPKG_ROOT matches both the devcontainer and this job.
+      # The tool clone takes ~30s. Package binaries are cached separately via
+      # VCPKG_BINARY_SOURCES — this step only fetches the tool itself.
+      - name: Install vcpkg
+        run: |
+          sudo git clone --depth 1 https://github.com/microsoft/vcpkg $VCPKG_ROOT
+          sudo $VCPKG_ROOT/bootstrap-vcpkg.sh -disableMetrics
+          sudo chmod -R a+rw $VCPKG_ROOT
+
+      # ── 4. Configure ─────────────────────────────────────────────────────────
+      # Uses the 'ci' preset: Release build, BUILD_TESTING=ON, no sanitizers.
+      # vcpkg manifest install (from vcpkg.json) runs here. Packages are
+      # restored from the binary cache or built and cached for next time.
+      - name: Configure
+        run: cmake --preset ci
+        working-directory: backend
+
+      # ── 5. Build ─────────────────────────────────────────────────────────────
+      - name: Build
+        run: cmake --build --preset ci
+        working-directory: backend
+
+      # ── 6. Test ──────────────────────────────────────────────────────────────
+      # --output-junit writes a JUnit XML report relative to the working
+      # directory (backend/). A non-zero exit code here (test failure) causes
+      # the job to fail — which is what blocks the merge.
+      # The upload step uses 'if: always()' so results are saved even when
+      # tests fail and this step exits non-zero.
+      - name: Test
+        run: ctest --preset ci --output-junit test-results.xml
+        working-directory: backend
+
+      # ── 7. Upload test results ───────────────────────────────────────────────
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: backend/test-results.xml
+          retention-days: 30
