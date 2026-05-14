@@ -268,3 +268,17 @@ Running list of notable decisions, in order. New entries go at the bottom.
 | 2026-04-26 | Explicit `Content-Type: application/json` header on responses | Crow defaults to `text/plain`; clients rely on this header to parse the body correctly |
 | 2026-04-26 | Hardcoded sample data in Portuguese | Project is Brazilian; realistic content from day one |
 | 2026-04-26 | Phase 0 sub-task 3 complete: `/notifications` endpoint with hardcoded JSON | `GET /notifications` returns a JSON array; serialization split from handler for testability |
+| 2026-05-05 | Flutter SDK installed via tarball in WSL2, not snap | snap daemons unreliable in WSL2; tarball at `~/flutter/` is the recommended Linux path |
+| 2026-05-05 | Flutter development on WSL2 host, not inside Docker | Flutter needs direct device/emulator access; containers can't bridge USB or wireless ADB |
+| 2026-05-05 | Test device: Samsung Galaxy S20 FE, Android 13 | Real device preferred over emulator given hardware constraints; Android 13 enables wireless ADB |
+| 2026-05-05 | Wireless ADB for deployment to device | No USB passthrough complexity through WSL2; pairs once, reconnects over LAN |
+| 2026-05-05 | Backend base URL for real device: `http://172.22.238.44:8080` | Phone on same LAN hits WSL2 host IP directly; Docker port binding forwards to Crow |
+| 2026-05-05 | Android SDK installed via cmdline-tools tarball, not Android Studio | Android Studio not needed for real-device Flutter development; cmdline-tools + JDK 17 is sufficient |
+| 2026-05-05 | Java 17 (openjdk-17-jdk) required by Android SDK tools | sdkmanager and Gradle are JVM programs; no JDK means no SDK toolchain |
+| 2026-05-05 | `--platforms android` flag on `flutter create` | iOS/web/desktop dirs excluded; adding iOS later is one command |
+| 2026-05-05 | `--org br.com.atenciosamente` reverse-domain app ID | Baked into AndroidManifest and Gradle; painful to change later |
+| 2026-05-05 | `http` package (^1.2.2, resolved to 1.6.0) for HTTP client | Dart's standard HTTP package; minimal API, no code generation needed at Phase 0 |
+| 2026-05-05 | JSON deserialization written by hand (`fromJson`) | Avoids code generation dependency at Phase 0; teaches the pattern before automating it |
+| 2026-05-05 | `FutureBuilder` for async data fetching (no state management library) | Idiomatic Flutter for single async operations; Riverpod/Bloc deferred until we feel pain |
+| 2026-05-05 | `StatelessWidget` for `NotificationsScreen` | FutureBuilder owns the async state internally; screen itself has no mutable state |
+| 2026-05-05 | `_NotificationCard` extracted as a private widget | Keeps `build()` readable; Flutter convention favors small focused widgets |
