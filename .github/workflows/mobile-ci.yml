@@ -1,0 +1,90 @@
+name: Mobile CI
+
+# ── Triggers ──────────────────────────────────────────────────────────────────
+# Mirrors the backend-ci.yml design: only fires when mobile source or this
+# workflow file change. A backend-only commit will not trigger a Flutter build.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/mobile-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/mobile-ci.yml'
+
+# ── Concurrency ───────────────────────────────────────────────────────────────
+# Cancel any in-progress run on the same branch when a new commit arrives.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+# ── Permissions ───────────────────────────────────────────────────────────────
+permissions:
+  contents: read
+
+jobs:
+  analyze-and-build:
+    name: Analyze and build (debug APK)
+    runs-on: ubuntu-24.04
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── 2. Java 17 ───────────────────────────────────────────────────────────
+      # The Android build toolchain (gradle, sdkmanager, aapt2) is a JVM program.
+      # Temurin is the Eclipse Adoptium distribution — free, LTS, widely used in CI.
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # ── 3. Flutter SDK ───────────────────────────────────────────────────────
+      # subosito/flutter-action installs Flutter on the runner and adds it to PATH.
+      # channel: stable tracks the latest stable release.
+      # cache: true saves the Flutter SDK between runs (~saves 1-2 min on warm runs).
+      # The ubuntu-24.04 runner already has the Android SDK pre-installed under
+      # $ANDROID_SDK_ROOT — no separate Android Studio or cmdline-tools step needed.
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # ── 4. Accept Android SDK licenses ───────────────────────────────────────
+      # sdkmanager requires all SDK licenses to be accepted before building.
+      # On a fresh runner they are not accepted. `yes |` auto-answers every prompt.
+      # `|| true` prevents failure if some licenses were already accepted.
+      - name: Accept Android SDK licenses
+        run: yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+      # ── 5. Install dependencies ───────────────────────────────────────────────
+      # flutter pub get reads pubspec.yaml + pubspec.lock and fetches packages.
+      # Equivalent to `npm ci` — uses the locked versions, fails if out of sync.
+      - name: Install dependencies
+        run: flutter pub get
+        working-directory: mobile/atenciosamente_app
+
+      # ── 6. Analyze ───────────────────────────────────────────────────────────
+      # flutter analyze runs the Dart analyzer across every .dart file.
+      # Catches: type errors, null-safety violations, unused imports, deprecated
+      # API usage, and code-style issues — all without a device or emulator.
+      # This is the fastest and most valuable check in mobile CI.
+      - name: Analyze
+        run: flutter analyze
+        working-directory: mobile/atenciosamente_app
+
+      # ── 7. Build debug APK ───────────────────────────────────────────────────
+      # Compiles the full app to an unsigned debug APK.
+      # --debug skips release signing (no keystore required in CI).
+      # This proves the app compiles end-to-end on a clean machine — catches
+      # issues that `flutter analyze` misses, such as Gradle misconfigurations,
+      # missing AndroidManifest entries, or broken native plugin bindings.
+      - name: Build debug APK
+        run: flutter build apk --debug
+        working-directory: mobile/atenciosamente_app
