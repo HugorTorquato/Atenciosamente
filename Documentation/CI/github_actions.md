@@ -206,6 +206,42 @@ available for download under **Artifacts** at the bottom of the run page.
 
 ---
 
+## Test file hygiene
+
+`flutter create` generates `test/widget_test.dart` as a smoke test for the
+default counter app. When you replace `main.dart` with your own app, this file
+becomes stale — it still references `MyApp` and counter-specific widgets that no
+longer exist.
+
+**Symptom:** `flutter analyze` fails with:
+
+```
+error • The name 'MyApp' isn't a class • test/widget_test.dart:16:35 • creation_with_non_type
+```
+
+**Why `flutter analyze` catches this:** the analyzer checks `test/` alongside
+`lib/`. The test file imports `main.dart` and references `MyApp()`, which no
+longer exists after the rename to `AtenciosamenteApp`.
+
+**Fix applied (Phase 0):** the generated test was replaced with a minimal
+placeholder that compiles and passes until real widget tests are written:
+
+```dart
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  test('placeholder — replace with real widget tests in a future phase', () {
+    expect(1 + 1, 2);
+  });
+}
+```
+
+**Rule going forward:** any time you rename or remove a top-level widget, check
+`test/widget_test.dart` (and any other test files) for stale references before
+pushing.
+
+---
+
 ## What CI does NOT do
 
 - **Run on a device or emulator** — no device tests (widget tests, integration
