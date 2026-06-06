@@ -13,6 +13,7 @@ This document explains every folder and file in the repository and why it exists
 ├── .editorconfig           ← consistent indentation/line endings across editors
 ├── .env.example            ← committed template; real .env is gitignored
 ├── docker-compose.yml      ← dev stack: backend + postgres containers
+├── run_dev.sh              ← detects Windows LAN IP and runs Flutter with --dart-define
 ├── .devcontainer/
 │   └── devcontainer.json   ← VS Code Dev Containers config (opens inside backend container)
 ├── .github/
@@ -105,7 +106,7 @@ mobile/
     │   ├── main.dart       ← entry point: void main() + root MaterialApp widget
     │   │
     │   ├── api/
-    │   │   └── notifications_client.dart  ← HTTP client: fetchNotifications()
+    │   │   └── notifications_client.dart  ← HTTP client: fetchNotifications(); URL via --dart-define at run time
     │   │
     │   ├── models/
     │   │   └── notification.dart          ← Notification class + fromJson constructor
@@ -191,9 +192,9 @@ material; use them when you need to recall a concept or reproduce a setup step.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  S20 FE (phone)                                             │
+│  phone                                                      │
 │  Flutter app                                                │
-│  http.get('http://172.22.238.44:8080/notifications')        │
+│  http.get('http://<windows-lan-ip>:8080/notifications')     │
 └────────────────────────┬────────────────────────────────────┘
                          │  WiFi LAN (HTTP/JSON)
                          ▼
@@ -207,11 +208,14 @@ material; use them when you need to recall a concept or reproduce a setup step.
 └─────────────────────────────────────────────────────────────┘
 ```
 
-The phone talks to the backend over the LAN using the WSL2 host's IP address
-(`172.22.238.44`). Docker's port binding (`ports: ["8080:8080"]` in
-`docker-compose.yml`) forwards connections from the WSL2 host into the backend
-container.
+The phone talks to the backend over the LAN using the Windows host's IP address.
+Docker's port binding (`ports: ["8080:8080"]` in `docker-compose.yml`) forwards
+connections from the WSL2 host into the backend container.
 
-This IP is DHCP-assigned and can change. At Phase 1+, consider either assigning
-a static LAN IP to the dev machine, or using a `.env`-driven config in Flutter
-(see §10 in `PROJECT_PLAN.md` — base URL indirection is an open question).
+The IP is not hardcoded. `run_dev.sh` (repo root) calls PowerShell from within
+WSL to detect the current LAN IP and passes it to Flutter via:
+```
+flutter run --dart-define=API_BASE_URL=http://<detected-ip>:8080
+```
+`notifications_client.dart` reads this with `String.fromEnvironment('API_BASE_URL')`,
+falling back to `localhost:8080` when the flag is absent (CI, emulator).

@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Atenciosamente
 
 > A mobile app that sends thoughtful notifications. Side project, learning-focused.
@@ -51,15 +50,29 @@ curl http://localhost:8080/notifications
 
 ## Running the mobile app (once Phase 0 lands)
 
+**Physical device (same Wi-Fi as your dev machine):**
+
 ```bash
-cd mobile/atenciosamente_app
-flutter pub get
-flutter run
+# from the repo root — auto-detects your Windows LAN IP
+./run_dev.sh
 ```
 
-> **Note for Android emulator:** `localhost` on the emulator refers to the
-> emulator itself, not your host. Use `http://10.0.2.2:8080` to reach the
-> backend. For real devices on the same LAN, use your host's LAN IP.
+**Android emulator:**
+
+```bash
+cd mobile/atenciosamente_app
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8080
+```
+
+> `10.0.2.2` is the emulator's alias for the host machine.
+
+**Without a flag (CI or quick local test):**
+
+```bash
+cd mobile/atenciosamente_app
+flutter run
+# falls back to http://localhost:8080
+```
 
 ## Learning notes
 
@@ -74,6 +87,3 @@ the reasoning:
 ## License
 
 TBD.
-=======
-# Atenciosamente
->>>>>>> 865ca82cd196d1b097cdfc85abe8d7d2eb0afdec
