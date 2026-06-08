@@ -16,12 +16,12 @@ Future<List<AppNotification>> fetchNotifications() async {
   // http.get() sends a GET request and returns a Future<Response>. The await
   // suspends this function until the response arrives, then resumes — no
   // threads, no callbacks, no blocking. Dart's event loop handles the rest.
-  final response = await http.get(Uri.parse(_baseUrl + '/notifications'));
+  final response = await http.get(Uri.parse('$_baseUrl/notifications'));
 
   if (response.statusCode != 200) {
     // Throwing here surfaces the error to whoever awaits fetchNotifications().
     // FutureBuilder on the widget side catches this and shows an error state.
-    throw Exception('Failed to load notifications (' + response.statusCode.toString() + ')');
+    throw Exception('Failed to load notifications (${response.statusCode})');
   }
 
   // jsonDecode returns dynamic — the JSON structure is unknown at compile time.
