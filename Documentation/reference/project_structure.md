@@ -168,23 +168,32 @@ this until Phase 4 (push notifications via platform channels).
 
 ```
 Documentation/
+├── README.md                    ← index of every doc + how to use them
 ├── PROJECT_PLAN.md              ← master architecture doc and decision log
 │                                   Attach this to every new conversation.
-├── flutter_create.md            ← flutter create command + pubspec + AndroidManifest
-├── dart_concepts.md             ← Dart language guide for C++ developers
-├── flutter_ui_concepts.md       ← Widget tree, FutureBuilder, StatelessWidget
-├── project_structure.md         ← this file
 │
-├── Dependencies/
-│   └── flutter_sdk.md           ← Flutter SDK install, ADB setup, Android SDK install
+├── reference/                   ← maps of "what exists and where"
+│   └── project_structure.md     ← this file
 │
-└── Phase_Prompts/
+├── concepts/                    ← language / framework / tooling learning notes
+│   ├── dart_concepts.md         ← Dart language guide for C++ developers
+│   ├── flutter_ui_concepts.md   ← Widget tree, FutureBuilder, StatelessWidget
+│   ├── docker.md                ← Docker / devcontainer commands and concepts
+│   └── github_actions.md        ← CI: GitHub Actions workflow concepts
+│
+├── setup/                       ← reproducible install / scaffold steps
+│   ├── flutter_sdk.md           ← Flutter SDK install, ADB setup, Android SDK install
+│   └── flutter_create.md        ← flutter create command + pubspec + AndroidManifest
+│
+└── phase-prompts/               ← bootstrap prompts, one file per phase
     └── PHASE_0_PROMPTS.md       ← bootstrap prompts for each Phase 0 sub-task
 ```
 
 **Rule from the working style:** `PROJECT_PLAN.md` is the handoff document —
 attach it to every new Claude conversation. The other files are reference
 material; use them when you need to recall a concept or reproduce a setup step.
+`Documentation/README.md` indexes them all. The category layout is kept tidy by
+the `organize-docs` skill (`.claude/skills/organize-docs/`).
 
 ---
 

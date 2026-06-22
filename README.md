@@ -10,24 +10,24 @@
 - A **C++ (Crow + PostgreSQL)** backend that serves and schedules them.
 
 The project is primarily a learning exercise. Choices favor educational depth
-alongside pragmatism — see [`PROJECT_PLAN.md`](./PROJECT_PLAN.md) for the full
+alongside pragmatism — see [`PROJECT_PLAN.md`](./Documentation/PROJECT_PLAN.md) for the full
 reasoning behind every decision.
 
 ## Status
 
 🚧 **Phase 0 — Walking skeleton.** Not yet usable.
 
-See the [roadmap in `PROJECT_PLAN.md`](./PROJECT_PLAN.md#6-roadmap--phased-each-phase-ships-something-working)
+See the [roadmap in `PROJECT_PLAN.md`](./Documentation/PROJECT_PLAN.md#6-roadmap)
 for what's coming.
 
 ## Repository layout
 
 ```
 atenciosamente/
-├── backend/    # C++ / Crow HTTP server
-├── mobile/     # Flutter app
+├── backend/         # C++ / Crow HTTP server
+├── mobile/          # Flutter app
 ├── docker-compose.yml
-└── PROJECT_PLAN.md   ← start here
+└── Documentation/   # PROJECT_PLAN.md ← start here, plus concept/setup notes
 ```
 
 ## Requirements
@@ -79,7 +79,7 @@ flutter run
 This repo is meant to be read as much as run. Notable files for understanding
 the reasoning:
 
-- [`PROJECT_PLAN.md`](./PROJECT_PLAN.md) — architecture, decision log, roadmap.
+- [`Documentation/PROJECT_PLAN.md`](./Documentation/PROJECT_PLAN.md) — architecture, decision log, roadmap.
 - `backend/CMakeLists.txt` — modern CMake walkthrough (once it exists).
 - `backend/src/app.cpp` — how Crow wires up routes.
 - `.github/workflows/backend-ci.yml` — test pyramid structure.
