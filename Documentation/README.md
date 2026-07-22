@@ -12,7 +12,8 @@ collected while building it.
   language, framework, or tool works.
 - **`setup/`** are reproducible steps — follow one to install or scaffold something.
 - **`reference/`** maps what exists in the repo and why.
-- **`phase-prompts/`** are the bootstrap prompts that kick off each sub-task conversation.
+- **`phase-prompts/`** hold per-phase material: the detailed **plan** for a phase and the
+  bootstrap **prompts** that kick off each sub-task conversation.
 
 The category layout is kept tidy by the `organize-docs` skill
 (`.claude/skills/organize-docs/`); run `/organize-docs` whenever a doc lands in the
@@ -48,3 +49,4 @@ wrong place.
 | Doc | What it covers |
 |---|---|
 | [PHASE_0_PROMPTS.md](./phase-prompts/PHASE_0_PROMPTS.md) | Bootstrap prompts for each Phase 0 sub-task. |
+| [PHASE_1_PERSISTENCE.md](./phase-prompts/PHASE_1_PERSISTENCE.md) | Phase 1 (Postgres persistence) plan: steps, schema, POST API, tests/CI, and a paste-in prompt per step. |

@@ -38,7 +38,8 @@ Documentation/
 - "How a language/framework/tool works" (learning note) → `concepts/`
 - "How to install or scaffold something, step by step" → `setup/`
 - "What files/folders exist and why" (a map) → `reference/`
-- "Prompt to bootstrap a sub-task conversation" → `phase-prompts/`
+- "Prompt to bootstrap a sub-task conversation" OR "the plan for a phase"
+  (e.g. `PHASE_1_PERSISTENCE.md`) → `phase-prompts/`
 - The master plan + decision log → `PROJECT_PLAN.md` at the root (never move it).
 
 ## Procedure
