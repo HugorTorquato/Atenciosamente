@@ -13,6 +13,7 @@
 #   format    : clang-format -i src/**/*.cpp src/**/*.hpp (always runs first)
 #   configure : cmake --preset=$PRESET
 #   build     : cmake --build --preset=$PRESET
+#   migrate   : scripts/migrate.sh (also runs automatically before run/test)
 #   run       : ./build/$PRESET/atenciosamente_server
 #   test      : ctest --preset=$PRESET
 set -euo pipefail
@@ -24,10 +25,11 @@ PRESET="dev"
 CMD="run"
 
 usage() {
-    echo "Usage: scripts/dev.sh [--preset dev|ci] [run|test|build]"
-    echo "  run     (default) format, configure, build, then start the server"
-    echo "  test               format, configure, build, then run the Catch2 suite via ctest"
+    echo "Usage: scripts/dev.sh [--preset dev|ci] [run|test|build|migrate]"
+    echo "  run      (default) format, configure, build, migrate, then start the server"
+    echo "  test               format, configure, build, migrate, then run the Catch2 suite via ctest"
     echo "  build              format, configure, and build only"
+    echo "  migrate            apply pending migrations/*.sql only (scripts/migrate.sh) — no build"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -36,7 +38,7 @@ while [[ $# -gt 0 ]]; do
             PRESET="$2"
             shift 2
             ;;
-        run|test|build)
+        run|test|build|migrate)
             CMD="$1"
             shift
             ;;
@@ -51,6 +53,10 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+if [[ "$CMD" == "migrate" ]]; then
+    exec scripts/migrate.sh
+fi
 
 echo "==> Formatting"
 clang-format -i src/**/*.cpp src/**/*.hpp
@@ -71,10 +77,12 @@ case "$CMD" in
     build)
         ;;
     test)
+        scripts/migrate.sh
         echo "==> Running tests ($PRESET)"
         ctest --preset="$PRESET"
         ;;
     run)
+        scripts/migrate.sh
         echo "==> Starting server ($PRESET)"
         exec "./build/$PRESET/atenciosamente_server"
         ;;

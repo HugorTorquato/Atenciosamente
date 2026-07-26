@@ -257,8 +257,17 @@ Add a second job. Services run alongside the job container as a sidecar.
 
     steps:
       # same install + vcpkg + configure/build steps
+      # then, once the postgres service is healthy and before ctest:
+      #   - run: scripts/migrate.sh
       # then run: ctest --preset ci -R integration  (filter by tag or path)
 ```
+
+`scripts/migrate.sh` applies `migrations/*.sql` against `$DATABASE_URL`,
+tracking what's applied in a `schema_migrations` table (see
+`scripts/migrate.sh` and the `migrate` subcommand of `scripts/dev.sh` for the
+same thing locally). It needs `postgresql-client` for `psql` — already on
+GitHub's `ubuntu-24.04` runner image by default, so no extra install step is
+needed in CI (only `Dockerfile.dev` needed it added, for the dev container).
 
 `needs: build-and-test` — integration tests only run if unit tests pass.
 This keeps the feedback loop fast: unit failure is cheaper to detect.

@@ -271,6 +271,7 @@ Running list of notable decisions, in order. New entries go at the bottom.
 | 2026-05-05 | Flutter SDK installed via tarball in WSL2, not snap | snap daemons unreliable in WSL2; tarball at `~/flutter/` is the recommended Linux path |
 | 2026-05-05 | Flutter development on WSL2 host, not inside Docker | Flutter needs direct device/emulator access; containers can't bridge USB or wireless ADB |
 | 2026-05-05 | Test device: Samsung Galaxy S20 FE, Android 13 | Real device preferred over emulator given hardware constraints; Android 13 enables wireless ADB |
+| 2026-07-26 | Idempotent shell-script migration runner (`scripts/migrate.sh`), tracking applied migrations in `schema_migrations`, invoked by `dev.sh run`/`test` and (S6) CI | Trackable and repeatable unlike manual `psql <`; keeps schema migration out of the C++ binary unlike app-startup apply |
 | 2026-05-05 | Wireless ADB for deployment to device | No USB passthrough complexity through WSL2; pairs once, reconnects over LAN |
 | 2026-05-05 | Backend base URL for real device: `http://172.22.238.44:8080` | Phone on same LAN hits WSL2 host IP directly; Docker port binding forwards to Crow |
 | 2026-05-05 | Android SDK installed via cmdline-tools tarball, not Android Studio | Android Studio not needed for real-device Flutter development; cmdline-tools + JDK 17 is sufficient |
