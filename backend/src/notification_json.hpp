@@ -1,9 +1,9 @@
 #pragma once
 
-#include "notification.hpp"
-
 #include <nlohmann/json.hpp>
 #include <span>
+
+#include "notification.hpp"
 
 // Serializes a single Notification to a JSON object.
 // Returns by value — the caller owns the result.

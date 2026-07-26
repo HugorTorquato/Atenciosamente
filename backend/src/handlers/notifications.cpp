@@ -1,10 +1,10 @@
 #include "notifications.hpp"
 
-#include "../notification.hpp"
-#include "../notification_json.hpp"
-
 #include <chrono>
 #include <vector>
+
+#include "../notification.hpp"
+#include "../notification_json.hpp"
 
 namespace {
 
@@ -12,22 +12,20 @@ namespace {
 // using namespace std::chrono_literals brings in the hour (h) and day (d)
 // suffixes so we can write natural durations like 2h instead of
 // std::chrono::hours{2}.
-std::vector<Notification> sample_notifications()
-{
+std::vector<Notification> sample_notifications() {
     using namespace std::chrono_literals;
     const auto now = std::chrono::system_clock::now();
 
     return {
-        {1, "Reunião às 15h",       "Não se esqueça da reunião de equipe.", now - 2h},
-        {2, "Lembrete de pagamento", "Fatura vence amanhã.",                 now - 24h},
-        {3, "Novo comentário",       "Alguém comentou na sua tarefa.",       now - 48h},
+        {1, "Reunião às 15h", "Não se esqueça da reunião de equipe.", now - 2h},
+        {2, "Lembrete de pagamento", "Fatura vence amanhã.", now - 24h},
+        {3, "Novo comentário", "Alguém comentou na sua tarefa.", now - 48h},
     };
 }
 
-} // namespace
+}  // namespace
 
-crow::response handle_get_notifications()
-{
+crow::response handle_get_notifications() {
     const auto exampleNotifications = sample_notifications();
 
     crow::response res;
