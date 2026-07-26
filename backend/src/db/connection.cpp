@@ -58,13 +58,13 @@ pqxx::connection make_connection() {
     // out and return instead of opening/closing one each time. That pool
     // would live in this same db/ module (e.g. a ConnectionPool type
     // alongside this function) so call sites barely change.
-    const std::string conninfo = std::format(
-        "host='{}' port='{}' dbname='{}' user='{}' password='{}'",
-        escape_conninfo_value(read_env("POSTGRES_HOST")),
-        escape_conninfo_value(read_env("POSTGRES_PORT")),
-        escape_conninfo_value(read_env("POSTGRES_DB")),
-        escape_conninfo_value(read_env("POSTGRES_USER")),
-        escape_conninfo_value(read_env("POSTGRES_PASSWORD")));
+    const std::string conninfo =
+        std::format("host='{}' port='{}' dbname='{}' user='{}' password='{}'",
+                    escape_conninfo_value(read_env("POSTGRES_HOST")),
+                    escape_conninfo_value(read_env("POSTGRES_PORT")),
+                    escape_conninfo_value(read_env("POSTGRES_DB")),
+                    escape_conninfo_value(read_env("POSTGRES_USER")),
+                    escape_conninfo_value(read_env("POSTGRES_PASSWORD")));
 
     // pqxx::connection's constructor is what actually opens the socket and
     // runs the handshake — by the time this line finishes, the connection

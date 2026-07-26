@@ -33,6 +33,7 @@ find_package(libpqxx       CONFIG REQUIRED)
 add_library(atenciosamente_core STATIC
     src/notification_json.cpp
     src/db/connection.cpp
+    src/repository/notification_repository.cpp
 )
 
 target_include_directories(atenciosamente_core PUBLIC
