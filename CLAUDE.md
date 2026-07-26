@@ -48,6 +48,9 @@ Examples: `Backend (Feat): add POST /notifications`, `Docs (Reorg): tidy Documen
 - One focused task per conversation; **every task ends in a commit**.
 - `PROJECT_PLAN.md` is the handoff document — the source of truth for decisions.
 - Commit only docs **or** code that belong together; don't sweep unrelated files in.
+- When explaining a flow/lifecycle (e.g. RAII, a request path, a build pipeline), offer a
+  Mermaid diagram as an Artifact for a quick visual — don't persist it to a repo `.md` file
+  unless asked to.
 
 ## Build & test quick reference
 
