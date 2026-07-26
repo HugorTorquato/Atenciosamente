@@ -24,10 +24,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gdb \
     clang-format \
     clang-tidy \
+    locales \
     sudo \
   && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100 \
   && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 100 \
+  && locale-gen en_US.UTF-8 \
   && rm -rf /var/lib/apt/lists/*
+
+ENV LANG=en_US.UTF-8 \
+    LANGUAGE=en_US:en \
+    LC_ALL=en_US.UTF-8
 
 ARG USERNAME=dev
 ARG USER_UID=1000
