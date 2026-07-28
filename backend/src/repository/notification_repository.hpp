@@ -6,6 +6,14 @@
 
 #include "../domain/notification.hpp"
 
+// Free functions, not a repository class (see notification_repository.cpp for
+// the fuller reasoning) — but grouped in a named namespace so a call site
+// like notification_repository::get_all(txn) says where the function comes
+// from without needing an IDE or the #include list to tell you. get_all/
+// insert are common enough verbs that a second entity's repository could
+// plausibly want the same names later; the namespace rules that out.
+namespace notification_repository {
+
 // Reads every row from the notifications table, most recent first, and maps
 // each one into a Notification.
 //
@@ -40,3 +48,5 @@ std::vector<Notification> get_all(pqxx::work& txn);
 // values, never spliced into the SQL text. See notification_repository.cpp
 // for why that's what makes this safe against SQL injection.
 Notification insert(pqxx::work& txn, const std::string& title, const std::string& body);
+
+}  // namespace notification_repository

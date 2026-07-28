@@ -30,3 +30,37 @@ endif()
 # per test case, not per executable.
 include(Catch)
 catch_discover_tests(tests_unit)
+
+# ── Integration tests ─────────────────────────────────────────────────────────
+# Separate executable from tests_unit, not more source files added to it:
+# these TEST_CASEs open a real connection to Postgres (via make_connection())
+# and need POSTGRES_* env vars and a live `db` service to pass, unlike
+# tests_unit which never touches a database. Keeping them in their own binary
+# means `ctest -R tests_unit` (or CI, before Postgres is relevant) can run
+# without a database at all.
+add_executable(tests_integration
+    integration/notification_repository_test.cpp
+)
+
+# atenciosamente_core brings in: notification_repository.cpp, db/connection.cpp,
+# libpqxx (PUBLIC on atenciosamente_core), and the src/ include path.
+# libpqxx::pqxx is linked explicitly here anyway, matching this project's style
+# of not relying solely on transitive PUBLIC propagation — even though
+# atenciosamente_core already brings it in via db/connection.hpp.
+target_link_libraries(tests_integration PRIVATE
+    atenciosamente_core
+    libpqxx::pqxx
+    Catch2::Catch2WithMain
+)
+
+if(ENABLE_SANITIZERS)
+    target_compile_options(tests_integration PRIVATE
+        -fsanitize=address,undefined
+        -fno-omit-frame-pointer
+    )
+    target_link_options(tests_integration PRIVATE
+        -fsanitize=address,undefined
+    )
+endif()
+
+catch_discover_tests(tests_integration)

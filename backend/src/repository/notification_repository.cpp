@@ -92,6 +92,8 @@ Notification row_to_notification(const pqxx::row_ref& row) {
 
 }  // namespace
 
+namespace notification_repository {
+
 std::vector<Notification> get_all(pqxx::work& txn) {
     const pqxx::result rows =
         txn.exec("SELECT id, title, body, " + std::string(kCreatedAtSelectExpr) +
@@ -161,3 +163,5 @@ Notification insert(pqxx::work& txn, const std::string& title, const std::string
         parse_created_at(row["created_at"].as<std::string>()),
     };
 }
+
+}  // namespace notification_repository

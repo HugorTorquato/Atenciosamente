@@ -60,7 +60,7 @@ crow::response handle_get_notifications() {
     // transaction, do work, let it go out of scope uncommitted.
     pqxx::work txn{conn};
 
-    const auto notifications = get_all(txn);
+    const auto notifications = notification_repository::get_all(txn);
 
     crow::response res;
     res.code = 200;
@@ -108,7 +108,8 @@ crow::response handle_post_notification(const crow::request& req) {
     // a half-finished request's data behind. Right now nothing sits between
     // insert() and commit() but that ordering (do the work, then commit)
     // is the pattern to keep as more steps get added to a handler.
-    const Notification created = insert(txn, validation.request->title, validation.request->body);
+    const Notification created =
+        notification_repository::insert(txn, validation.request->title, validation.request->body);
     txn.commit();
 
     crow::response res;
