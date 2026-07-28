@@ -164,17 +164,28 @@ configure, which reads `vcpkg.json` and either:
 
 ### 5. Build — `cmake --build --preset ci`
 
-Compiles `atenciosamente_core`, `atenciosamente_server`, and `tests_unit`.
+Compiles `atenciosamente_core`, `atenciosamente_server`, `tests_unit`, and
+`tests_integration` — with no target specified, this builds everything
+`BUILD_TESTING=ON` enables, in both the `unit` and `integration` jobs alike.
+Each job only *runs* its own binary's tests (see the `TEST_PREFIX` section
+below), but both still compile the other binary too; that's a small amount of
+redundant compute per job, not per-target skipped, and is why the vcpkg
+binary cache (not something more surgical like target-scoped builds) is what
+keeps CI fast.
 
-### 6. Test — `ctest --preset ci --output-junit test-results.xml`
+### 6. Test — `ctest --preset ci -R '<prefix>' --output-junit <file>.xml`
 
-Runs all tests registered with CTest. Exit code is non-zero if any test
-fails, which fails the step, which fails the job, which blocks the merge
-(once branch protection is configured).
+Runs the subset of CTest-registered tests matching `-R` — see "The
+`tests_unit` / `tests_integration` filtering problem" further down for why
+this is filtered at all, instead of just `ctest --preset ci` with no filter.
+Exit code is non-zero if any selected test fails, which fails the step,
+which fails the job, which blocks the merge (once branch protection is
+configured).
 
 `--output-junit` writes a JUnit XML file — a standard format that GitHub,
 Allure, and most CI dashboards understand. The file is relative to the
-working directory (`backend/test-results.xml`).
+working directory (`backend/test-results-unit.xml` or
+`backend/test-results-integration.xml`, one per job).
 
 ### 7. Upload test results — `actions/upload-artifact@v4`
 
@@ -215,62 +226,132 @@ rule" in older GitHub UI).
 |---------|-------|-----|
 | Branch name pattern | `main` | protects the integration branch |
 | Require status checks before merging | ✓ | core rule |
-| Status check to require | `Build and test (Release)` | this is the job's `name:` field |
+| Status checks to require | `Unit tests` **and** `Integration tests (Postgres)` | these are the two jobs' `name:` fields — both must be required, since they run as independent, unordered jobs (see below) |
 | Require branches to be up to date | ✓ | prevents "merge window" races |
 | Do not allow bypassing these settings | your call | disabling bypass means even admins are blocked |
 
-**How to find the status check name**: push any commit to a branch and open a
-PR. The checks panel shows the names. The name comes from the `name:` field of
-the job, not the workflow — ours is `Build and test (Release)`.
+**How to find the status check names**: push any commit to a branch and open
+a PR. The checks panel shows the names. The name comes from each job's
+`name:` field, not the workflow — ours are `Unit tests` and
+`Integration tests (Postgres)`.
 
 ---
 
-## Adding Phase 1 — Postgres integration tests
+## Phase 1 — Postgres integration tests (as built)
 
-Add a second job. Services run alongside the job container as a sidecar.
+Two independent jobs, `unit` and `integration`, each doing its own full
+checkout → install tools → install vcpkg → configure → build → test. Neither
+has a `needs:` on the other.
+
+**Why independent instead of `needs: unit`?** It's defensible either way —
+this project chose independent/parallel because:
+- the vcpkg binary cache makes a second full build cheap once warm (seconds,
+  not the ~3 minute cold build), so building twice isn't wasteful enough to
+  justify passing build artifacts between jobs (its own upload/download
+  complexity, and a source of drift between two different job filesystems);
+- running in parallel gives the fastest total signal — a genuine integration
+  bug shows up immediately, not delayed behind however long the unit job
+  takes;
+- the two tiers test unrelated concerns, so gating one behind the other's
+  success doesn't add information, only latency.
 
 ```yaml
-  integration-test:
+  integration:
     name: Integration tests (Postgres)
     runs-on: ubuntu-24.04
-    needs: build-and-test       # only run if unit tests pass
 
     services:
-      postgres:
-        image: postgres:17
+      db:
+        image: postgres:16
         env:
           POSTGRES_USER: atenciosamente
-          POSTGRES_PASSWORD: atenciosamente
-          POSTGRES_DB: atenciosamente_test
+          POSTGRES_PASSWORD: devpassword
+          POSTGRES_DB: atenciosamente_dev
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U atenciosamente -d atenciosamente_dev"
           --health-interval 5s
-          --health-timeout 3s
+          --health-timeout 5s
           --health-retries 5
 
     env:
-      DATABASE_URL: postgresql://atenciosamente:atenciosamente@localhost:5432/atenciosamente_test
+      POSTGRES_USER: atenciosamente
+      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB: atenciosamente_dev
+      POSTGRES_HOST: localhost   # not "db" — see note below
+      POSTGRES_PORT: "5432"
       VCPKG_ROOT: /opt/vcpkg
       VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
 
     steps:
-      # same install + vcpkg + configure/build steps
-      # then, once the postgres service is healthy and before ctest:
-      #   - run: scripts/migrate.sh
-      # then run: ctest --preset ci -R integration  (filter by tag or path)
+      # same install + vcpkg + configure/build steps as the unit job, plus
+      # `postgresql-client` in the apt install list (see note below), then:
+      #   - run: ./scripts/migrate.sh          (working-directory: backend)
+      #   - run: ctest --preset ci -R '^integration/' --output-junit ...
 ```
 
-`scripts/migrate.sh` applies `migrations/*.sql` against `$DATABASE_URL`,
-tracking what's applied in a `schema_migrations` table (see
-`scripts/migrate.sh` and the `migrate` subcommand of `scripts/dev.sh` for the
-same thing locally). It needs `postgresql-client` for `psql` — already on
-GitHub's `ubuntu-24.04` runner image by default, so no extra install step is
-needed in CI (only `Dockerfile.dev` needed it added, for the dev container).
+Postgres version and env var names/values are pinned to match the rest of the
+project exactly, not invented per-CI values:
+- `postgres:16` — the same version pinned in the repo's `docker-compose.yml`.
+- `POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB` values match
+  `.env.example` verbatim (`atenciosamente` / `devpassword` /
+  `atenciosamente_dev`), so `make_connection()` and `scripts/migrate.sh`
+  behave identically to local dev.
+- `POSTGRES_HOST=localhost` is the one deliberate difference from
+  `.env.example`'s `POSTGRES_HOST=db`. `db` is the Compose service name, only
+  resolvable inside the Compose network used for local dev. GitHub Actions
+  `services:` containers are different: they run alongside the job and,
+  because `ports: ["5432:5432"]` publishes the container port onto the
+  runner's own network namespace, are reached at `localhost`.
 
-`needs: build-and-test` — integration tests only run if unit tests pass.
-This keeps the feedback loop fast: unit failure is cheaper to detect.
+`scripts/migrate.sh` applies `migrations/*.sql` against the `POSTGRES_*` env
+vars above (or `$DATABASE_URL` if that's set instead), tracking what's
+applied in a `schema_migrations` table (see `scripts/migrate.sh` and the
+`migrate` subcommand of `scripts/dev.sh` for the same thing locally). It
+needs `postgresql-client` for `psql`. The `ubuntu-24.04` runner image's
+documented "Installed apt packages" list (a curated subset, separate from a
+pre-installed full PostgreSQL 16 server the image also ships, disabled by
+default) doesn't explicitly name `postgresql-client`, so this workflow
+installs it explicitly in the integration job's "Install build tools" step
+rather than assume it's already on `PATH` — a cheap, idempotent apt install
+either way.
+
+Because a health check is configured on the `services:` container, GitHub
+blocks the job's first step until `pg_isready` reports healthy — no manual
+"wait for Postgres" step is needed.
+
+### The `tests_unit` / `tests_integration` filtering problem
+
+`backend/tests/CMakeLists.txt` builds two separate CTest-discoverable
+binaries (`tests_unit`, needs no DB; `tests_integration`, needs a live
+Postgres). Without something distinguishing their registered CTest names, a
+single job's `ctest -R <pattern>` can't select "only this binary's tests" —
+the individual `TEST_CASE` names don't share a common prefix per binary.
+
+**Chosen fix: `TEST_PREFIX` on `catch_discover_tests()`.**
+
+```cmake
+catch_discover_tests(tests_unit TEST_PREFIX "unit/")
+catch_discover_tests(tests_integration TEST_PREFIX "integration/")
+```
+
+This namespaces every discovered test under `unit/…` or `integration/…`, so:
+- the `unit` job runs `ctest --preset ci -R '^unit/' --output-junit test-results-unit.xml`
+- the `integration` job runs `ctest --preset ci -R '^integration/' --output-junit test-results-integration.xml`
+
+Each job uploads its own `test-results-unit.xml` / `test-results-integration.xml`
+as a distinct `actions/upload-artifact@v4` artifact (`v4` requires unique
+artifact names within a run — reusing the old shared `test-results` name
+across two jobs would fail the upload in whichever job ran second).
+
+The alternative considered was invoking the built binaries directly
+(`./build/ci/tests/tests_unit`, `./build/ci/tests/tests_integration`) instead
+of going through `ctest -R`. That was rejected here because it would mean
+inventing a different (Catch2-native) path to JUnit output, breaking the
+existing `ctest --output-junit` + `upload-artifact` pattern for no real
+benefit — `TEST_PREFIX` gets the same isolation with a one-line change per
+binary and zero change to how results are produced or uploaded.
 
 ---
 
@@ -282,7 +363,7 @@ The runner already has Docker installed. Start the full stack with Compose:
   functional-test:
     name: Functional tests (HTTP)
     runs-on: ubuntu-24.04
-    needs: integration-test
+    needs: integration       # this job's id, per the S6 job split — not "integration-test"
 
     steps:
       - uses: actions/checkout@v4
@@ -302,7 +383,7 @@ Compose file (no volume mounts, no devcontainer service, pinned image tags).
 
 ## Adding a lint/format job
 
-Add this as a parallel job (no `needs:` so it runs alongside build-and-test):
+Add this as a parallel job (no `needs:` so it runs alongside `unit`/`integration`):
 
 ```yaml
   lint:

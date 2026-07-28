@@ -36,9 +36,33 @@ concurrency:
 permissions:
   contents: read
 
+# ── Job split rationale ─────────────────────────────────────────────────────
+# Two independent jobs, `unit` and `integration` — no `needs:` between them.
+#
+# Per PROJECT_PLAN.md §8 ("each tier in its own job — one broken integration
+# test doesn't hide a real unit test failure"), the tiers must report as
+# separate status checks. The question this leaves open is whether they
+# should also be *ordered* (integration gated behind unit via `needs:`) or
+# run in parallel. We chose parallel, independent jobs:
+#   - The vcpkg binary cache (VCPKG_BINARY_SOURCES) makes each job's own
+#     build cheap once warm (seconds, not the ~3 minute cold build), so
+#     building twice is not wasteful enough to justify passing build
+#     artifacts between jobs — which would need its own upload/download
+#     steps and is a source of subtle drift (different job = different
+#     filesystem/cache state).
+#   - Running in parallel gives the fastest total signal: a genuine
+#     integration bug is visible immediately, not delayed behind however
+#     long the unit job takes.
+#   - Both tiers test unrelated concerns (pure logic vs. DB-backed repository
+#     behavior); gating one behind the other's success doesn't add
+#     information, it only adds latency to one signal when the other job
+#     happens to be slow or briefly flaky.
+# Each job builds fully via the same `cmake --preset ci` / `cmake --build
+# --preset ci` pattern from before the split, then filters CTest to just its
+# own tier — see the TEST_PREFIX note on the "Run … tests" step below.
 jobs:
-  build-and-test:
-    name: Build and test (Release)
+  unit:
+    name: Unit tests
     runs-on: ubuntu-24.04
 
     env:
@@ -103,13 +127,18 @@ jobs:
         working-directory: backend
 
       # ── 6. Test ──────────────────────────────────────────────────────────────
+      # `tests/CMakeLists.txt` registers every CTest name under a TEST_PREFIX
+      # per binary ("unit/…" for tests_unit, "integration/…" for
+      # tests_integration), specifically so a single `ctest --preset ci -R`
+      # pattern can select one binary's tests without touching the other's —
+      # this job never needs a database because it only ever runs "unit/*".
       # --output-junit writes a JUnit XML report relative to the working
       # directory (backend/). A non-zero exit code here (test failure) causes
       # the job to fail — which is what blocks the merge.
       # The upload step uses 'if: always()' so results are saved even when
       # tests fail and this step exits non-zero.
-      - name: Test
-        run: ctest --preset ci --output-junit test-results.xml
+      - name: Run unit tests
+        run: ctest --preset ci -R '^unit/' --output-junit test-results-unit.xml
         working-directory: backend
 
       # ── 7. Upload test results ───────────────────────────────────────────────
@@ -117,6 +146,120 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
-          path: backend/test-results.xml
+          name: test-results-unit
+          path: backend/test-results-unit.xml
+          retention-days: 30
+
+  integration:
+    name: Integration tests (Postgres)
+    runs-on: ubuntu-24.04
+
+    # A Postgres service container runs alongside this job as a sidecar.
+    # GitHub starts it before the job's own steps run and — because a health
+    # check is configured — blocks the first step until pg_isready reports
+    # healthy, so no manual "wait for Postgres" step is needed here.
+    # `ports: ["5432:5432"]` publishes the container's port onto the runner's
+    # own network namespace, which is why POSTGRES_HOST below is "localhost"
+    # rather than the service name "db" — unlike the Compose network used for
+    # local dev, GitHub Actions service containers are reached via localhost.
+    services:
+      db:
+        image: postgres:16
+        env:
+          POSTGRES_USER: atenciosamente
+          POSTGRES_PASSWORD: devpassword
+          POSTGRES_DB: atenciosamente_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atenciosamente -d atenciosamente_dev"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # Same names/values as .env.example — everything downstream
+      # (scripts/migrate.sh, make_connection() in the test binary) reads
+      # these exactly as it does against the Compose `db` service locally.
+      # POSTGRES_HOST is the one deliberate difference: "localhost" here vs.
+      # "db" in .env.example, per the services-container note above.
+      POSTGRES_USER: atenciosamente
+      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB: atenciosamente_dev
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      VCPKG_ROOT: /opt/vcpkg
+      VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── 2. Build tools ───────────────────────────────────────────────────────
+      # Same set as the unit job, plus postgresql-client for `psql`, which
+      # scripts/migrate.sh needs. ubuntu-24.04 runners ship a full PostgreSQL
+      # 16 server pre-installed (disabled by default), which likely already
+      # provides psql — but that's undocumented as an explicit apt package,
+      # so we install postgresql-client explicitly rather than assume. It's a
+      # cheap, idempotent apt install either way (a few hundred KB if it
+      # wasn't already present).
+      - name: Install build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            ninja-build \
+            pkg-config \
+            libssl-dev \
+            zip unzip \
+            bison flex \
+            autoconf automake libtool \
+            postgresql-client
+          sudo update-alternatives \
+            --install /usr/bin/gcc gcc /usr/bin/gcc-13 100
+          sudo update-alternatives \
+            --install /usr/bin/g++ g++ /usr/bin/g++-13 100
+
+      # ── 3. vcpkg ─────────────────────────────────────────────────────────────
+      - name: Install vcpkg
+        run: |
+          sudo git clone --depth 1 https://github.com/microsoft/vcpkg $VCPKG_ROOT
+          sudo $VCPKG_ROOT/bootstrap-vcpkg.sh -disableMetrics
+          sudo chmod -R a+rw $VCPKG_ROOT
+
+      # ── 4. Configure ─────────────────────────────────────────────────────────
+      - name: Configure
+        run: cmake --preset ci
+        working-directory: backend
+
+      # ── 5. Build ─────────────────────────────────────────────────────────────
+      - name: Build
+        run: cmake --build --preset ci
+        working-directory: backend
+
+      # ── 6. Migrate ───────────────────────────────────────────────────────────
+      # Applies migrations/*.sql (currently just 0001_create_notifications.sql)
+      # against the service container before any test runs. Idempotent: safe
+      # even if re-run, tracked via the schema_migrations table.
+      - name: Apply migrations
+        run: ./scripts/migrate.sh
+        working-directory: backend
+
+      # ── 7. Test ──────────────────────────────────────────────────────────────
+      # Mirrors the unit job's TEST_PREFIX filtering, selecting only
+      # tests_integration's tests ("integration/*"). These TEST_CASEs call
+      # make_connection() directly and open their own pqxx::work per test,
+      # rolling back at the end of each — see
+      # tests/integration/notification_repository_test.cpp.
+      - name: Run integration tests
+        run: ctest --preset ci -R '^integration/' --output-junit test-results-integration.xml
+        working-directory: backend
+
+      # ── 8. Upload test results ───────────────────────────────────────────────
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-integration
+          path: backend/test-results-integration.xml
           retention-days: 30

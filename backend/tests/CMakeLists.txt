@@ -29,7 +29,11 @@ endif()
 # registers each TEST_CASE as a separate CTest entry — so failures are reported
 # per test case, not per executable.
 include(Catch)
-catch_discover_tests(tests_unit)
+# TEST_PREFIX namespaces every discovered CTest name under "unit/" so CI can
+# select this binary's tests with `ctest -R '^unit/'` without touching
+# tests_integration's — see the CMakeLists comment above tests_integration and
+# .github/workflows/backend-ci.yml for the other half of this.
+catch_discover_tests(tests_unit TEST_PREFIX "unit/")
 
 # ── Integration tests ─────────────────────────────────────────────────────────
 # Separate executable from tests_unit, not more source files added to it:
@@ -63,4 +67,6 @@ if(ENABLE_SANITIZERS)
     )
 endif()
 
-catch_discover_tests(tests_integration)
+# Mirrors tests_unit's TEST_PREFIX so CI can select only this binary's tests
+# with `ctest -R '^integration/'`.
+catch_discover_tests(tests_integration TEST_PREFIX "integration/")
