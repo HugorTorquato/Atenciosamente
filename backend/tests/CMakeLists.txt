@@ -2,6 +2,7 @@ find_package(Catch2 CONFIG REQUIRED)
 
 add_executable(tests_unit
     unit/notification_json_test.cpp
+    unit/create_notification_request_test.cpp
 )
 
 # Catch2::Catch2WithMain provides a main() so we don't write one.

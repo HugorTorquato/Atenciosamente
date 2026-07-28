@@ -391,6 +391,8 @@ backend/
 ├── migrations/
 │   └── 0001_create_notifications.sql        S1  (new)
 ├── src/
+│   ├── domain/
+│   │   └── create_notification_request.{hpp,cpp}  S4  (new; validation, no Crow/DB)
 │   ├── db/
 │   │   └── connection.{hpp,cpp}             S2  (new)
 │   ├── repository/
@@ -398,9 +400,11 @@ backend/
 │   └── handlers/
 │       └── notifications.{hpp,cpp}          S3 edit + S4 POST handler
 │   └── app.cpp                              S4  (register POST route)
-├── CMakeLists.txt                           S2/S3 (add new .cpp to core)
+├── CMakeLists.txt                           S2/S3/S4 (add new .cpp to core)
 └── tests/
-    ├── CMakeLists.txt                       S5  (add tests_integration target)
+    ├── CMakeLists.txt                       S4  (add validation unit test) / S5 (add tests_integration target)
+    ├── unit/
+    │   └── create_notification_request_test.cpp  S4  (new)
     └── integration/
         └── notification_repository_test.cpp S5  (new)
 

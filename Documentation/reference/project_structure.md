@@ -39,36 +39,62 @@ backend/
 ├── vcpkg.json              ← dependency manifest: Crow, nlohmann/json, Catch2, libpqxx
 ├── .clang-format           ← Google style, 4-space indent
 ├── .clang-tidy             ← static analysis rules
+├── contexts/               ← learning notes (cmake, docker, CI, Catch2) kept next to the code
+├── migrations/
+│   └── 0001_create_notifications.sql  ← SQL schema migration, applied by scripts/migrate.sh
+├── scripts/
+│   ├── migrate.sh          ← idempotent migration runner (tracks applied migrations)
+│   └── dev.sh              ← `run` / `test` convenience wrapper, calls migrate.sh first
 │
 ├── src/
 │   ├── main.cpp            ← entry point: creates App, calls run()
 │   ├── app.hpp / app.cpp   ← registers all routes on the Crow server
+│   │
+│   ├── domain/             ← pure logic: no Crow, no libpqxx, no I/O
+│   │   ├── notification.hpp             ← Notification struct (data only, no behaviour)
+│   │   ├── notification_json.hpp/.cpp   ← to_json(), serialize_notifications() (response side)
+│   │   └── create_notification_request.hpp/.cpp
+│   │                                     ← parse_create_notification_request() — validates a
+│   │                                       parsed JSON body for POST /notifications (request side)
+│   │
+│   ├── db/
+│   │   └── connection.hpp/.cpp   ← make_connection(): builds a pqxx::connection from
+│   │                                POSTGRES_* env vars (RAII, connection-per-request)
+│   │
+│   ├── repository/
+│   │   └── notification_repository.hpp/.cpp
+│   │       ← get_all(pqxx::work&) / insert(pqxx::work&, title, body): free functions
+│   │         that run SQL against the notifications table and map rows to Notification
+│   │
 │   └── handlers/
-│       ├── notifications.hpp   ← declares handle_get_notifications()
-│       └── notifications.cpp   ← implements the GET /notifications handler
-│
-├── include/
-│   └── atenciosamente/
-│       ├── notification.hpp        ← Notification struct (data only, no behaviour)
-│       └── notification_json.hpp   ← to_json(), serialize_notifications() free functions
+│       ├── notifications.hpp   ← declares handle_get_notifications(), handle_post_notification()
+│       └── notifications.cpp   ← implements GET/POST /notifications; the thin adapter
+│                                  layer between crow::request/response, domain/, and repository/
 │
 └── tests/
     ├── CMakeLists.txt          ← defines tests_unit target, links atenciosamente_core
     └── unit/
-        └── notification_json_test.cpp  ← Catch2 tests for JSON serialization
+        ├── notification_json_test.cpp            ← JSON serialization (response side)
+        └── create_notification_request_test.cpp  ← request validation (no DB, no Crow)
 ```
 
 ### Key backend concepts
 
-**`atenciosamente_core` static library** — `notifications.cpp`,
-`notification_json.cpp`, and other business-logic `.cpp` files are compiled into
-a static library. Both the server binary and the test binary link against it.
-This avoids compiling the same source twice and ensures tests run the exact same
-code as production.
+**`atenciosamente_core` static library** — the business-logic `.cpp` files
+(`domain/`, `db/`, `repository/`) compile into a static library. Both the
+server binary and the test binary link against it. This avoids compiling the
+same source twice and ensures tests run the exact same code as production.
+`handlers/*.cpp` compile only into the server executable — they glue Crow,
+`domain/`, `db/`, and `repository/` together but aren't linked into
+`tests_unit` themselves; the pure logic they call *is*, which is what unit
+tests exercise directly.
 
-**`src/` vs `include/`** — public headers (types and functions other files use)
-live in `include/atenciosamente/`. Implementation details live in `src/`. The
-convention mirrors what you'd find in a library.
+**Four-layer shape inside `src/`** — `domain/` (pure data + validation +
+serialization, no I/O), `repository/` (SQL, takes an already-open
+`pqxx::work&`), `db/` (opens the connection the repository runs queries
+through), `handlers/` (adapts one Crow endpoint to the layers above). Each
+layer only depends on the ones below it; `domain/` depends on nothing else
+in `src/`.
 
 **`handlers/`** — one handler per endpoint. Each handler is a free function
 that takes a `crow::request` and returns a `crow::response`. Handlers are

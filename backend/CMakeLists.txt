@@ -31,7 +31,8 @@ find_package(libpqxx       CONFIG REQUIRED)
 # (S5) will construct connections through this same module, so it needs
 # that same libpqxx dependency to flow through automatically.
 add_library(atenciosamente_core STATIC
-    src/notification_json.cpp
+    src/domain/notification_json.cpp
+    src/domain/create_notification_request.cpp
     src/db/connection.cpp
     src/repository/notification_repository.cpp
 )

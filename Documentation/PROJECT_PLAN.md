@@ -93,23 +93,36 @@ atenciosamente/
 │
 ├── backend/
 │   ├── Dockerfile.dev              ← compiler, cmake, vcpkg, debuggers
-│   ├── Dockerfile                  ← multi-stage prod build (stub in Phase 0)
+│   ├── Dockerfile                  ← multi-stage prod build (stub, not yet used)
 │   ├── CMakeLists.txt
 │   ├── CMakePresets.json           ← `dev` and `ci` presets
 │   ├── vcpkg.json
 │   ├── .clang-format
 │   ├── .clang-tidy
+│   ├── migrations/
+│   │   └── 0001_create_notifications.sql
+│   ├── scripts/
+│   │   ├── migrate.sh              ← idempotent migration runner
+│   │   └── dev.sh
 │   ├── src/
 │   │   ├── main.cpp                ← thin entry point
 │   │   ├── app.hpp / app.cpp       ← builds Crow app, registers routes
+│   │   ├── domain/                 ← pure logic: no Crow, no libpqxx, no I/O
+│   │   │   ├── notification.hpp
+│   │   │   ├── notification_json.hpp / .cpp
+│   │   │   └── create_notification_request.hpp / .cpp
+│   │   ├── db/
+│   │   │   └── connection.hpp / .cpp   ← make_connection(), RAII, connection-per-request
+│   │   ├── repository/
+│   │   │   └── notification_repository.hpp / .cpp   ← get_all() / insert(), free functions
 │   │   └── handlers/
 │   │       ├── notifications.hpp
 │   │       └── notifications.cpp
-│   ├── include/                    ← public headers (empty in Phase 0)
 │   └── tests/
 │       ├── CMakeLists.txt
 │       └── unit/
-│           └── notifications_test.cpp
+│           ├── notification_json_test.cpp
+│           └── create_notification_request_test.cpp
 │
 └── mobile/
     └── atenciosamente_app/         ← output of `flutter create`
@@ -123,6 +136,13 @@ atenciosamente/
 ```
 
 **Why monorepo:** solo project, API and client evolve together, one `git clone` bootstraps everything.
+
+**Backend `src/` shape (added Phase 1):** `domain/` (pure data + validation +
+serialization), `repository/` (SQL against an already-open `pqxx::work&`),
+`db/` (opens the connection), `handlers/` (adapts one Crow endpoint to the
+layers above). See `Documentation/reference/project_structure.md` for the
+full annotated tree — this section is a map, not the source of truth for
+every file.
 
 ---
 
@@ -287,3 +307,8 @@ Running list of notable decisions, in order. New entries go at the bottom.
 | 2026-07-26 | `libpqxx::pqxx` linked `PUBLIC` on `atenciosamente_core` (not `PRIVATE` as on the server executable) | `atenciosamente_core`'s public header `db/connection.hpp` now `#include`s `<pqxx/connection>`; any consumer (server, `tests_unit`, and S5's `tests_integration`) needs libpqxx's include path and symbols transitively |
 | 2026-07-26 | Phase 1 S3: repository shape is a free function `get_all(pqxx::work& txn)` in `src/repository/notification_repository.{hpp,cpp}`, not a class | Fits §4.3 "dumb data + free functions"; taking `pqxx::work&` (not a connection) makes the transaction boundary explicit at the call site instead of hidden in object state, and composes directly with S4's insert-in-same-transaction and S5's per-test rollback isolation — a class would tempt storing a `pqxx::connection` member, which conflicts with connection-per-request |
 | 2026-07-26 | `notification_repository.cpp` selects `created_at` via `to_char(... AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')` and parses the fixed string with `sscanf` + C++20 chrono calendar types, not `std::chrono::parse` | libstdc++ (GCC 13, this container) implements `<chrono>` formatting but not parsing; asking Postgres to format the timestamp in the query sidesteps both that gap and DateStyle-dependent output shapes |
+| 2026-07-27 | Phase 1 S4: `insert(pqxx::work&, title, body)` wraps the `INSERT ... RETURNING id, created_at` in a `WITH inserted AS (...)` CTE, then re-`SELECT`s `id` and the same `to_char(...)` expression `get_all()` uses from `inserted` | A bare `RETURNING` can't apply `to_char(...)` formatting to the returned `created_at`; the CTE lets both the read and write paths format the timestamp identically, so `parse_created_at()` stays the single place that understands that string shape. `title`/`body` in the returned `Notification` are echoed back from the caller's arguments rather than re-selected, since the CTE's outer `SELECT` only needs the two DB-generated columns |
+| 2026-07-27 | Used `txn.exec(sql, pqxx::params{txn, title, body})`, not `txn.exec_params(sql, title, body)` | The vcpkg-pinned libpqxx (8.x) marks `exec_params` `[[deprecated]]` in favor of `exec(query, params)`; `-Werror` turns the deprecation warning into a build failure. Same parameterized-query safety property either way — no user input is ever spliced into the SQL text |
+| 2026-07-27 | POST /notifications validation extracted into a pure free function `parse_create_notification_request(const nlohmann::json&)` in new `src/domain/create_notification_request.{hpp,cpp}` (added to `atenciosamente_core`), and the handler parses the request body with `nlohmann::json::parse(req.body, nullptr, false)` instead of `crow::json::load` | Keeps validation logic unit-testable (`tests/unit/create_notification_request_test.cpp`) without a live server, Postgres, or linking Crow into `atenciosamente_core`; reuses the same JSON library (nlohmann) already used for response serialization instead of mixing two JSON libraries across the request/response boundary. `handlers/notifications.cpp` stays the thin adapter that turns a real `crow::request` into JSON and a `ValidationResult`/`Notification` into a `crow::response` |
+| 2026-07-27 | Single-notification JSON serialization for the `201` response reuses the existing `to_json(const Notification&)` from `domain/notification_json.hpp` (already present since Phase 0, used internally by `serialize_notifications`) | No new serializer needed — `to_json` was already public and already the single-object building block; POST just calls it directly instead of only via the array wrapper |
+| 2026-07-27 | New `backend/src/domain/` directory; moved all pure-logic files there together (`notification.hpp`, `notification_json.{hpp,cpp}`, `create_notification_request.{hpp,cpp}`) rather than leaving the new file alone at `src/` top level | Matches the existing `repository/` and `db/` naming — every `src/` subfolder now names a layer (`domain/` = pure data + validation + serialization, `repository/` = SQL, `db/` = connection, `handlers/` = HTTP adapters), so the four-layer shape is visible directly in the folder tree instead of only in prose. Moving all of them together (not just the newest file) keeps the layer boundary consistent instead of "some domain files are in `domain/`, some aren't" |

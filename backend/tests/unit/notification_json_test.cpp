@@ -1,6 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include "notification_json.hpp"
+#include "domain/notification_json.hpp"
 
 #include <chrono>
 #include <vector>

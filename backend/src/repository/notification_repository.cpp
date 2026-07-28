@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
+#include <pqxx/params>
 #include <pqxx/result>
 #include <pqxx/row>
 #include <stdexcept>
@@ -102,4 +103,61 @@ std::vector<Notification> get_all(pqxx::work& txn) {
         notifications.push_back(row_to_notification(row));
     }
     return notifications;
+}
+
+Notification insert(pqxx::work& txn, const std::string& title, const std::string& body) {
+    // The INSERT itself can only RETURNING the raw TIMESTAMPTZ, not the
+    // to_char(...)-formatted string get_all() relies on above (RETURNING
+    // clauses run before any further SELECT-level expressions could be
+    // applied to them). Wrapping the INSERT in a CTE ("WITH inserted AS
+    // (...)") lets us apply kCreatedAtSelectExpr to inserted.created_at in
+    // an outer SELECT, so both query paths format the timestamp identically
+    // and parse_created_at() below stays the single place that understands
+    // that string shape.
+    //
+    // exec(sql, pqxx::params{txn, title, body}) is a *parameterized*
+    // statement: title and body never get pasted into the SQL text as
+    // characters. libpqxx sends the query string (with $1/$2 placeholders)
+    // and the parameter values to Postgres as two separate pieces over the
+    // wire; the server substitutes them at execution time, already knowing
+    // each is meant to be a plain text value for a TEXT column. Contrast
+    // that with building the string ourselves, e.g.
+    //   "INSERT INTO notifications(title, body) VALUES ('" + title + "', ...)"
+    // — if title were something like `', 'x'); DROP TABLE notifications; --`
+    // that becomes part of the SQL *grammar*, not just its data, and runs as
+    // additional statements/expressions. Parameterized queries sidestep that
+    // whole class of bug: there is no step where user-supplied text is
+    // parsed as SQL syntax, so there is nothing for an attacker's quotes,
+    // semicolons, or comment markers to break out of. (This libpqxx version
+    // spells that call `txn.exec(sql, pqxx::params{...})`; older libpqxx
+    // used a now-deprecated `txn.exec_params(sql, ...)` shorthand for the
+    // same thing — the safety property is identical either way.) Passing
+    // `txn` as the first element of `params` isn't a third bind value — it
+    // tells params which connection's text encoding to convert title/body
+    // through; only title and body become $1/$2.
+    const std::string sql =
+        "WITH inserted AS ("
+        "INSERT INTO notifications(title, body) VALUES ($1, $2) "
+        "RETURNING id, created_at"
+        ") "
+        "SELECT id, " +
+        std::string(kCreatedAtSelectExpr) + " AS created_at FROM inserted";
+    const pqxx::result rows = txn.exec(sql, pqxx::params{txn, title, body});
+
+    // one_row_ref() (rather than rows[0]) documents the assumption out
+    // loud: a single-row INSERT ... RETURNING must produce exactly one row,
+    // and it throws pqxx::unexpected_rows instead of silently reading
+    // garbage if that assumption is ever wrong.
+    const pqxx::row_ref row = rows.one_row_ref();
+
+    // title/body are echoed back from the arguments rather than re-read
+    // from the row: the CTE's outer SELECT only asks Postgres for id and
+    // created_at (the two columns the caller couldn't have known ahead of
+    // time), so there's nothing to re-parse for the other two fields.
+    return Notification{
+        row["id"].as<std::int64_t>(),
+        title,
+        body,
+        parse_created_at(row["created_at"].as<std::string>()),
+    };
 }
