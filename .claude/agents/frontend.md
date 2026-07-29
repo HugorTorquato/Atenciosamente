@@ -43,6 +43,10 @@ flutter test            # widget tests
 - New full-screen widget + route → **`frontend-add-screen`**.
 - No skill yet for the task? Do it by hand; if it'll recur, propose a new `frontend-*` skill.
 
+## CI changes
+If you touch `.github/workflows/mobile-ci.yml` (new job, new step, changed trigger), update
+the mobile diagram in `.github/workflows/README.md` to match, in the same commit.
+
 Match the existing file's style (the codebase is heavily commented for learning — keep that
 density). Finish with a single commit, style `Scope (Tag): summary` (e.g.
 `Mobile (Feat): add notification detail screen`). No body, no trailers.

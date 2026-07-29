@@ -48,6 +48,10 @@ docker compose up -d db && ctest --preset=dev -R '^integration/'
 - A task with no skill yet? Do it carefully by hand, then, if it's the kind of thing
   that will recur, propose adding a new `backend-*` skill that captures the procedure.
 
+## CI changes
+If you touch `.github/workflows/backend-ci.yml` (new job, new step, changed trigger), update
+the backend diagram in `.github/workflows/README.md` to match, in the same commit.
+
 ## Test coverage — check as you go, don't wait to be asked
 Whenever a task touches `src/domain/` or `src/repository/`, check before finishing whether
 the function(s) you added or changed have corresponding coverage (`tests/unit/` for
