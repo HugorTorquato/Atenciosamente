@@ -16,7 +16,7 @@ with `required` named params, and a `factory ... .fromJson(Map<String, dynamic> 
 ## Procedure
 
 1. **Match the backend shape.** Read the matching C++ side first —
-   `backend/include/atenciosamente/notification.hpp` and `notification_json.hpp` — so field
+   `backend/src/domain/notification.hpp` and `notification_json.hpp` — so field
    names and JSON keys line up exactly (e.g. backend emits `created_at`; the Dart field is
    `createdAt`, parsed from `json['created_at']`).
 2. **Create** `lib/models/<entity>.dart` with one class:
