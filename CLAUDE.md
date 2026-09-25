@@ -30,13 +30,16 @@ re-open in the WSL repo. Writing to the WSL path from a Windows session needs th
 
 Don't re-derive the layout — it's documented in
 [`Documentation/reference/project_structure.md`](Documentation/reference/project_structure.md).
-The master architecture doc + decision log is
-[`Documentation/PROJECT_PLAN.md`](Documentation/PROJECT_PLAN.md) — **attach it to every new
-conversation**, and back-port any decision you make into its decision-log table.
 
-Current state: **Phase 0 (walking skeleton) is complete.** Next is **Phase 1 — Persistence**
-(swap the hardcoded list for Postgres via libpqxx, add `POST /notifications`, SQL migration
-for the `notifications` table, integration tests with per-test transaction rollback).
+The master architecture doc + decision log is
+[`Documentation/PROJECT_PLAN.md`](Documentation/PROJECT_PLAN.md). Read it when: the task
+touches `backend/` or `mobile/` architecture, changes a public API/schema, or you're about
+to make a call that isn't obviously implied by existing code. Skip it for scoped fixes
+(a single file, a config tweak, a doc edit). Whenever you *do* make a decision worth
+recording, back-port it into the decision-log table (§10) regardless.
+
+Current phase state lives only in `PROJECT_PLAN.md` §10's most recent rows — nowhere else
+in this repo states it, so it can't go stale in two places at once.
 
 ## Commit style (strict)
 
@@ -69,8 +72,8 @@ flutter run                 # falls back to http://localhost:8080
 
 ## AI-dev setup in this repo
 
-- **`.claude/agents/`** — domain subagents you delegate to: `backend`, `frontend`.
-  They run in their own context and reach for the skills below.
-- **`.claude/skills/`** — reusable procedures, callable directly (`/skill-name`) or by a
-  subagent: `backend-add-endpoint`, `backend-add-migration`, `frontend-add-model`,
-  `frontend-add-screen`, and `organize-docs`. Add a new skill the first time a task recurs.
+- **`.claude/agents/`** — domain subagents, one per part of the stack, run in their own
+  context and reach for skills below.
+- **`.claude/skills/`** — reusable procedures a subagent reaches for or you call directly.
+  Both are already listed with descriptions in every session's context — don't re-enumerate
+  them here. Add a new skill the first time a task recurs.
