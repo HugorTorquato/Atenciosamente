@@ -43,6 +43,12 @@ Start dev containers (if using Docker Compose):
 docker compose up -d
 ```
 
+**Note:** `.vscode/tasks.json` runs this automatically every time the folder is opened
+(VS Code's `runOn: folderOpen`), so you normally don't need to type it yourself — watch
+for the "Start containers" terminal panel. To free the resources, run the matching **Stop
+containers** task (Command Palette → `Tasks: Run Task` → `Stop containers`, which runs
+`docker compose down`); nothing stops the containers automatically.
+
 Build the backend (inside the container or WSL dev environment):
 
 ```bash
