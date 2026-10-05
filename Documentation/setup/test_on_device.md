@@ -24,13 +24,24 @@ terminals" isn't obvious.
 6. If it changed since your last session, copy the new value into the `PHONE_ADB=`
    line near the top of `run_dev.sh` (repo root) before running it.
 
-**Only if `./run_dev.sh` then fails at `adb connect` with an authentication error** —
-first time pairing this phone with this machine, or after a factory reset / cleared ADB
-keys — do this instead of just retrying:
+**Pairing must happen before the first `adb connect` ever succeeds** — this phone has to
+trust this WSL2 machine's adb key at least once. Do this if `adb connect` keeps failing
+with `failed to connect` / `Connection refused` even right after copying a fresh IP:port
+from the main screen — first time pairing this phone with this machine, or after a factory
+reset / cleared ADB keys:
+
+> **Don't confuse the two screens.** "Pair device with pairing code" is a *different*
+> sub-screen from the main "Wireless debugging" one, with its **own separate IP:port** —
+> not the address you copied into `PHONE_ADB`. That address is only for `adb pair`, and
+> only for this one-time handshake.
 
 1. On the same Wireless debugging screen, tap **"Pair device with pairing code"**.
-2. In a WSL2 terminal, run `adb pair <ip:port-from-that-screen>`.
+2. In a WSL2 terminal, run `adb pair <ip:port-shown-on-that-screen>` (not the main
+   screen's address).
 3. Type the 6-digit code the phone shows when prompted.
+4. Once pairing succeeds, `adb connect` to the **main** screen's IP:port works from then
+   on — until the phone forgets this machine's key again (factory reset, "Revoke wireless
+   debugging" on the phone, etc.), at which point pairing is needed again.
 - [ ] `~/projects/Atenciosamente` is the repo you're working in (not the stale Windows copy).
 
 ---
@@ -161,6 +172,7 @@ sequenceDiagram
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `run_dev.sh` fails at `adb connect` | Wireless debugging was toggled off, so the IP:port changed | Re-open Wireless debugging on the phone, note the new IP:port, update `PHONE_ADB` in `run_dev.sh` |
+| `adb connect` still fails (`failed to connect` / `Connection refused`) right after updating `PHONE_ADB` to a fresh IP:port, and `ping <phone-IP>` succeeds | This machine's adb key was never paired with the phone (or the phone forgot it) — the main screen's IP:port only works for already-trusted machines | Pair first: see **"Pairing must happen before the first `adb connect` ever succeeds"** above |
 | `ERROR: Could not detect Windows LAN IP` | Windows host not on Wi-Fi/Ethernet, or PowerShell interop broken | Check Windows network connection; run the `Get-NetIPAddress` line from `run_dev.sh` manually in PowerShell to debug |
 | Feed spinner never resolves / "Erro ao carregar notificações." on first load | Backend not running, or phone/Windows not on the same LAN as the `db`/`backend` containers | Check Terminal 1 is still running `scripts/dev.sh run`; check `docker compose ps` |
 | Create fails with a generic error immediately | Migration not applied (schema missing) | `scripts/dev.sh run` runs `scripts/migrate.sh` automatically — if you started the server a different way, run `scripts/migrate.sh` manually inside the container |
