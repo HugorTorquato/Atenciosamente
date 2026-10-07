@@ -36,7 +36,10 @@ logic in `handlers/`), there is no tier for it yet — flag that instead of forc
 
 1. File: `backend/tests/unit/<subject>_test.cpp`. Style reference:
    `notification_json_test.cpp` (serialization) and `create_notification_request_test.cpp`
-   (validation) — `TEST_CASE`/`SECTION` naming, assertion style, comment density.
+   (validation) — `TEST_CASE`/`SECTION` naming, assertion style. Keep comments to one line
+   each, only where the reasoning isn't obvious from the code (e.g. why an assertion can't
+   produce a false pass/fail from scheduling) — not a paragraph per `TEST_CASE` walking
+   through what it does.
 2. No `pqxx`, no `make_connection()`, no `crow.h` — if you find yourself reaching for any of
    those, the code under test isn't actually domain logic; re-check step 1's table.
 3. Add the new file to `add_executable(tests_unit ...)`'s source list in
