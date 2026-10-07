@@ -3,10 +3,7 @@
 #include <utility>
 
 ValidationResult parse_create_notification_request(const nlohmann::json& body) {
-    // A syntactically valid JSON document can still be the wrong *shape* —
-    // a bare number, string, array, or null. We need a JSON object with
-    // named fields, so reject anything else before calling body.at(...),
-    // which would otherwise throw nlohmann::json::type_error.
+
     if (!body.is_object()) {
         return {std::nullopt, "request body must be a JSON object"};
     }

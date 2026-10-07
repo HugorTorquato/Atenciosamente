@@ -43,7 +43,7 @@ catch_discover_tests(tests_unit TEST_PREFIX "unit/")
 # means `ctest -R tests_unit` (or CI, before Postgres is relevant) can run
 # without a database at all.
 add_executable(tests_integration
-    integration/notification_repository_test.cpp
+    integration/repository/notification_repository_test.cpp
 )
 
 # atenciosamente_core brings in: notification_repository.cpp, db/connection.cpp,

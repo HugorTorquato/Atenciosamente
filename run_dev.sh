@@ -5,7 +5,7 @@
 
 # Update this whenever your phone's IP or ADB port changes.
 # Find it in: Settings > Developer options > Wireless debugging
-PHONE_ADB=192.168.2.106:45481
+PHONE_ADB=192.168.0.64:42019
 
 echo "Connecting to phone via ADB ($PHONE_ADB)..."
 adb connect "$PHONE_ADB"

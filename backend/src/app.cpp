@@ -13,8 +13,6 @@ void setup_routes(crow::SimpleApp& app) {
 
     // .methods(crow::HTTPMethod::POST) restricts this route to POST; the
     // same "/notifications" path already handles GET above via the
-    // no-args overload (Crow dispatches on method, not just path). The
-    // handler takes a `const crow::request&` (to read the body), so it's
-    // registered with that signature instead of the no-arg one above.
+    // no-args overload.
     CROW_ROUTE(app, "/notifications").methods(crow::HTTPMethod::POST)(handle_post_notification);
 }
