@@ -22,18 +22,29 @@ find_package(libpqxx       CONFIG REQUIRED)
 # gets src/ on its include search path. This lets tests/unit/*.cpp write
 # #include "notification_json.hpp" without knowing where src/ is.
 #
-# PUBLIC nlohmann_json / libpqxx: the server and test executables inherit
-# these dependencies transitively — they do not need to repeat them.
+# PUBLIC nlohmann_json / libpqxx / Threads: the server and test executables
+# inherit these dependencies transitively — they do not need to repeat them.
 # libpqxx is PUBLIC (not PRIVATE) because atenciosamente_core's public
 # headers now include <pqxx/connection> (see src/db/connection.hpp) — any
 # consumer that #includes that header needs libpqxx's include path and,
 # once it links, its symbols too. The upcoming tests_integration target
 # (S5) will construct connections through this same module, so it needs
-# that same libpqxx dependency to flow through automatically.
+# that same libpqxx dependency to flow through automatically. Threads is
+# PUBLIC for the same reason: src/db/connection_pool.hpp is a public header
+# that includes <mutex>/<condition_variable>, so every consumer needs
+# pthread's symbols linked in too. Declared explicitly here rather than
+# relying on it arriving transitively via Crow (which happens to pull in
+# pthread through Asio) — tests_unit/tests_integration never link Crow at
+# all, and an implicit, undeclared dependency that only "works" because the
+# dev container's glibc folds pthread into libc is exactly the kind of
+# fragile assumption this project avoids.
+find_package(Threads REQUIRED)
+
 add_library(atenciosamente_core STATIC
     src/domain/notification_json.cpp
     src/domain/create_notification_request.cpp
     src/db/connection.cpp
+    src/db/connection_pool.cpp
     src/repository/notification_repository.cpp
 )
 
@@ -48,6 +59,7 @@ target_compile_options(atenciosamente_core PRIVATE
 target_link_libraries(atenciosamente_core PUBLIC
     nlohmann_json::nlohmann_json
     libpqxx::pqxx
+    Threads::Threads
 )
 
 # ── Server executable ─────────────────────────────────────────────────────────
