@@ -2,17 +2,21 @@
 
 #include "handlers/notifications.hpp"
 
-void setup_routes(crow::SimpleApp& app) {
+void setup_routes(crow::SimpleApp& app, ConnectionPool& pool) {
     CROW_ROUTE(app, "/")
     ([]() { return "hello"; });
 
-    // We pass the function by name — Crow accepts any callable that matches
-    // the route's parameter signature. No lambda needed when the handler is
-    // already a plain free function.
-    CROW_ROUTE(app, "/notifications")(handle_get_notifications);
+    // Lambdas, not plain function names, because each handler now needs
+    // pool — capturing it by reference forwards the same pool main()
+    // constructed instead of each route getting (or owning) its own.
+    CROW_ROUTE(app, "/notifications")
+    ([&pool]() { return handle_get_notifications(pool); });
 
     // .methods(crow::HTTPMethod::POST) restricts this route to POST; the
     // same "/notifications" path already handles GET above via the
     // no-args overload.
-    CROW_ROUTE(app, "/notifications").methods(crow::HTTPMethod::POST)(handle_post_notification);
+    CROW_ROUTE(app, "/notifications")
+        .methods(crow::HTTPMethod::POST)([&pool](const crow::request& req) {
+            return handle_post_notification(pool, req);
+        });
 }

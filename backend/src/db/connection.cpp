@@ -47,17 +47,6 @@ std::string escape_conninfo_value(const std::string& value) {
 }  // namespace
 
 pqxx::connection make_connection() {
-    // ── Phase 2 TODO: connection pooling ─────────────────────────────────
-    // Every call to make_connection() opens a brand-new TCP socket and runs
-    // Postgres's full startup handshake (auth, parameter negotiation).
-    // That's real, measurable latency — but at Phase 1's traffic (a single
-    // developer's requests) it's not worth optimizing yet. Once Phase 2
-    // (concurrency) introduces enough simultaneous requests that "one
-    // handshake per request" shows up as a bottleneck, replace this with a
-    // pool: a fixed set of already-open connections that requests check
-    // out and return instead of opening/closing one each time. That pool
-    // would live in this same db/ module (e.g. a ConnectionPool type
-    // alongside this function) so call sites barely change.
     const std::string conninfo =
         std::format("host='{}' port='{}' dbname='{}' user='{}' password='{}'",
                     escape_conninfo_value(read_env("POSTGRES_HOST")),

@@ -4,7 +4,6 @@
 #include <pqxx/transaction>
 #include <string>
 
-#include "../db/connection.hpp"
 #include "../domain/create_notification_request.hpp"
 #include "../domain/notification_json.hpp"
 #include "../repository/notification_repository.hpp"
@@ -24,12 +23,11 @@ crow::response bad_request(const std::string& message) {
 
 }  // namespace
 
-crow::response handle_get_notifications() {
-    // TODO: Move away from one connection-per-request
-    pqxx::connection conn = make_connection();
+crow::response handle_get_notifications(ConnectionPool& pool) {
+    auto lease = pool.acquire();
 
     // We never call txn.commit() below, and that's deliberate, not a bug.
-    pqxx::work txn{conn};
+    pqxx::work txn{*lease};
 
     const auto notifications = notification_repository::get_all(txn);
 
@@ -43,7 +41,7 @@ crow::response handle_get_notifications() {
     return res;
 }
 
-crow::response handle_post_notification(const crow::request& req) {
+crow::response handle_post_notification(ConnectionPool& pool, const crow::request& req) {
     const nlohmann::json parsed = nlohmann::json::parse(req.body, nullptr, false);
     if (parsed.is_discarded()) {
         return bad_request("request body must be valid JSON");
@@ -54,9 +52,8 @@ crow::response handle_post_notification(const crow::request& req) {
         return bad_request(validation.error);
     }
 
-    // TODO: Move away from one connection-per-request
-    pqxx::connection conn = make_connection();
-    pqxx::work txn{conn};
+    auto lease = pool.acquire();
+    pqxx::work txn{*lease};
 
     const Notification created =
         notification_repository::insert(txn, validation.request->title, validation.request->body);

@@ -13,9 +13,10 @@
 // stack unwinds, etc.), the connection closes itself. See connection.cpp
 // for the fuller explanation.
 //
-// Phase 1 deliberately opens one connection per call (i.e. one per request,
-// once a handler calls this). Pooling is a Phase 2 concern — see the TODO
-// in connection.cpp.
+// Opens one new connection per call — no pooling here. ConnectionPool
+// (connection_pool.hpp) is what pools these for the request path; it calls
+// this function once per slot at construction, so handlers should acquire
+// a connection from a pool rather than calling this directly.
 //
 // Throws std::runtime_error if a required env var is missing or empty, or
 // pqxx::broken_connection (itself derived from std::runtime_error) if
