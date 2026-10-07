@@ -1,8 +1,8 @@
 #include "connection_pool.hpp"
 
-#include "connection.hpp"
-
 #include <stdexcept>
+
+#include "connection.hpp"
 
 // ── ConnectionLease ──────────────────────────────────────────────────────
 
@@ -41,13 +41,9 @@ ConnectionLease::~ConnectionLease() {
     }
 }
 
-pqxx::connection& ConnectionLease::operator*() const {
-    return pool_->connections_[index_];
-}
+pqxx::connection& ConnectionLease::operator*() const { return pool_->connections_[index_]; }
 
-pqxx::connection* ConnectionLease::operator->() const {
-    return &pool_->connections_[index_];
-}
+pqxx::connection* ConnectionLease::operator->() const { return &pool_->connections_[index_]; }
 
 // ── ConnectionPool ───────────────────────────────────────────────────────
 
@@ -56,13 +52,6 @@ ConnectionPool::ConnectionPool(std::size_t size) {
         throw std::invalid_argument("ConnectionPool: size must be at least 1");
     }
 
-    // reserve() up front so the push_back loop below never reallocates.
-    // That matters here for a subtler reason than the usual "avoid
-    // wasted copies": pqxx::connection has no copy constructor, only a
-    // move constructor, so a mid-loop reallocation would need to move
-    // every already-constructed connection into new storage. That's not
-    // unsafe exactly (move is well-defined), but it's needless churn for
-    // something we can avoid entirely by sizing the vector once.
     connections_.reserve(size);
     in_use_.resize(size, false);
     for (std::size_t i = 0; i < size; ++i) {
