@@ -188,6 +188,7 @@ jobs:
       POSTGRES_DB: atenciosamente_dev
       POSTGRES_HOST: localhost
       POSTGRES_PORT: "5432"
+      POSTGRES_POOL_SIZE: "4"
       VCPKG_ROOT: /opt/vcpkg
       VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
 

@@ -39,7 +39,7 @@ Phase 2 is **done** when all of these are true:
 - [ ] `GET`/`POST /notifications` go through the pool instead of
       `make_connection()` per request — both TODO comments in `connection.cpp`
       and `notifications.cpp` are resolved (deleted, not just left stale).
-- [ ] Pool size is configurable via a `POSTGRES_POOL_SIZE` env var, with a
+- [x] Pool size is configurable via a `POSTGRES_POOL_SIZE` env var, with a
       documented default, wired into `.env.example` and CI.
 - [ ] Every sub-task is committed, and new decisions are recorded in
       `PROJECT_PLAN.md` §10.

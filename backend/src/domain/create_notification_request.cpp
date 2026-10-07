@@ -3,7 +3,6 @@
 #include <utility>
 
 ValidationResult parse_create_notification_request(const nlohmann::json& body) {
-
     if (!body.is_object()) {
         return {std::nullopt, "request body must be a JSON object"};
     }

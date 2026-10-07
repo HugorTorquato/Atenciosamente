@@ -16,7 +16,6 @@ void setup_routes(crow::SimpleApp& app, ConnectionPool& pool) {
     // same "/notifications" path already handles GET above via the
     // no-args overload.
     CROW_ROUTE(app, "/notifications")
-        .methods(crow::HTTPMethod::POST)([&pool](const crow::request& req) {
-            return handle_post_notification(pool, req);
-        });
+        .methods(crow::HTTPMethod::POST)(
+            [&pool](const crow::request& req) { return handle_post_notification(pool, req); });
 }
