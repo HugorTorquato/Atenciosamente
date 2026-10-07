@@ -44,6 +44,7 @@ catch_discover_tests(tests_unit TEST_PREFIX "unit/")
 # without a database at all.
 add_executable(tests_integration
     integration/repository/notification_repository_test.cpp
+    integration/db/connection_pool_test.cpp
 )
 
 # atenciosamente_core brings in: notification_repository.cpp, db/connection.cpp,
