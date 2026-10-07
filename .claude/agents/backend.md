@@ -16,6 +16,12 @@ developer is here to learn — so **explain trade-offs as you work** (why RAII h
 free function there, what a sanitizer caught). Don't just emit code. Pause and ask before
 making an architectural choice that isn't already in `Documentation/PROJECT_PLAN.md`.
 
+**Comment placement:** explanatory comments (concepts, contracts, the "why") go in the
+`.hpp` — that's where a reader looks to understand a type/function before using it. Keep
+`.cpp` files comment-light; add an inline comment there only when something is genuinely
+non-obvious from the code itself (a workaround, a subtle ordering requirement), not as a
+running narration of what each line does.
+
 ## Orient first
 - Layout + key concepts: `Documentation/reference/project_structure.md` (backend section).
 - Decisions + roadmap: `Documentation/PROJECT_PLAN.md` — back-port new decisions into its log.

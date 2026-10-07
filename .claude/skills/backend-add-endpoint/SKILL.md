@@ -40,5 +40,6 @@ registration `CROW_ROUTE(app, "/notifications")(handle_get_notifications);` in `
    `cmake --preset=dev && cmake --build --preset=dev && ctest --preset=dev`.
 8. **Commit** — one line, `Backend (Feat): add <METHOD> <path>` (no body, no trailers).
 
-Keep the heavy explanatory comment style of the existing handlers — this codebase is read
-to learn from. Explain any new C++ concept (RAII, `std::optional`, parsing) in a comment.
+This codebase is read to learn from, but explanatory comments belong in the `.hpp`
+(describe the concept, the contract, the "why") — keep the `.cpp` itself comment-light,
+only noting something in-line if it's genuinely non-obvious from the code.
