@@ -50,3 +50,6 @@ wrong place.
 |---|---|
 | [PHASE_0_PROMPTS.md](./phase-prompts/PHASE_0_PROMPTS.md) | Bootstrap prompts for each Phase 0 sub-task. |
 | [PHASE_1_PERSISTENCE.md](./phase-prompts/PHASE_1_PERSISTENCE.md) | Phase 1 (Postgres persistence) plan: steps, schema, POST API, tests/CI, and a paste-in prompt per step. |
+| [PHASE_2_CONCURRENCY.md](./phase-prompts/PHASE_2_CONCURRENCY.md) | Phase 2 (thread-safe connection pool) plan: steps, concepts, and a paste-in prompt per step. |
+| [PHASE_4_USERS_AND_ACCESS_ARCHITECTURE.md](./phase-prompts/PHASE_4_USERS_AND_ACCESS_ARCHITECTURE.md) | Phase 4 design: accounts, password hashing, bearer-token auth, roles — each decision argued against its runner-up. |
+| [PHASE_4_USERS_AND_ACCESS_IMPLEMENTATION.md](./phase-prompts/PHASE_4_USERS_AND_ACCESS_IMPLEMENTATION.md) | Phase 4 work breakdown: eleven steps (backend S1–S7, mobile S8–S10, wrap-up S11) with a paste-in prompt each. |

@@ -154,8 +154,9 @@ every file.
 | **1. Persistence** | Swap hardcoded data for Postgres. Add `POST /notifications`. Integration tests against real DB. | libpqxx, SQL migrations, RAII for DB resources, test isolation via transactions |
 | **2. Concurrency** | Handle concurrent requests. Thread-safe DB layer. Possibly async handlers. | `std::mutex`, `std::shared_mutex`, connection pooling, thread safety |
 | **3. Scheduled notifications** | Background worker decides "time to send this one." Still in-app delivery. | Background threads, design patterns, clock abstraction |
-| **4. Push notifications** | FCM/APNs integration. Device tokens stored in DB. | Outbound HTTP, credential handling, production integration |
-| **5+** | Auth, deployment, observability, profiling, whatever matters by then | TBD |
+| **4. Users & access control** | Sign-up, login, password hashing, role-based access (admin vs. recipient). Notifications become per-user. | Password hashing (Argon2id), bearer-token auth, RBAC, DB schema for accounts |
+| **5. Push notifications** | FCM/APNs integration. Device tokens stored in DB. | Outbound HTTP, credential handling, production integration |
+| **6+** | Deployment, observability, profiling, whatever matters by then | TBD |
 
 **Phase 0 explicit non-goals:** auth, rate limiting, HTTPS, real data, multiple endpoints,
 state management on mobile, coverage gates, fancy logging. All come when they earn their place.
@@ -235,8 +236,12 @@ Rule: we don't skip rungs prematurely.
 
 Things we explicitly kicked down the road:
 
-- **Deploy target** — decide when Phase 4–5 makes it real.
-- **Auth** — not in scope until user accounts exist.
+- **Deploy target** — decide when Phase 5–6 makes it real. Note that Phase 4
+  (accounts) makes HTTPS — deployment ladder rung 3 — a prerequisite for ever
+  leaving the LAN, since passwords and bearer tokens now travel on the wire.
+- **Auth** — scoped as Phase 4 ("Users & access control"); see
+  `Documentation/phase-prompts/PHASE_4_USERS_AND_ACCESS_ARCHITECTURE.md` and
+  `..._IMPLEMENTATION.md` for the design and step breakdown.
 - **State management on Flutter** — no Riverpod/Bloc until we feel pain without it.
 - **Observability** — logs to stdout is enough until it isn't.
 - **Domain name** — when we deploy for real.
