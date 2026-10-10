@@ -16,6 +16,13 @@
 > dependencies or the running `db` service on 2026-10-09. Claims marked
 > **[unverified]** could not be checked yet and must be confirmed during
 > implementation.
+>
+> ⚠️ **One finding has been overtaken: §S6's in-process C++ functional tier is
+> SUPERSEDED** (decided 2026-10-10). F4's *coverage* argument was accepted, but the
+> tier was built out-of-process in Python instead — `backend/tests/functional/`, per
+> [`PHASE_3_FUNCTIONAL_END_TO_END_TESTS.md`](PHASE_3_FUNCTIONAL_END_TO_END_TESTS.md).
+> Do not build `atenciosamente_http` or `tests_functional`; add Phase 4's endpoint
+> assertions to the pytest suite. Reasoning and rejection: `PROJECT_PLAN.md` §10.
 
 ---
 
@@ -315,6 +322,16 @@ by hand.
 
 That is not an acceptable bar for the one phase in the roadmap whose subject
 is access control. **Phase 4 is where the functional tier earns its place.**
+
+> **Outcome (2026-10-10): the tier exists, but not this one.** The coverage
+> argument above was accepted; the *mechanism* below was not. A Python/pytest
+> suite talking to the real server over a real socket landed instead
+> (`backend/tests/functional/`); S6 is superseded and the five costs listed
+> below — the CMake restructure, the C++ fixture, the prefix-scoped cleanup,
+> the CI job, the two extra conversations — are **not** being paid. Phase 4's
+> job is to extend the pytest suite with the auth matrix. See
+> [`PHASE_3_FUNCTIONAL_END_TO_END_TESTS.md`](PHASE_3_FUNCTIONAL_END_TO_END_TESTS.md)
+> §8.3 and `PROJECT_PLAN.md` §10.
 
 **Recommendation: build it, in-process, with Crow's own dispatcher — not over
 a socket.** `crow::SimpleApp` exposes `handle_full(request&, response&)`
@@ -1013,6 +1030,12 @@ ASan abort at startup. The new `atenciosamente_http` library and
 fail to start in the `dev` preset for reasons that look nothing like the
 actual cause.
 
+> **Both of the above are moot (2026-10-10):** S6 is superseded, so there is no
+> in-process fixture and no new CMake target. The out-of-process tier runs the real
+> `atenciosamente_server`, which already calls `run()` (hence `validate()`) and is
+> already in the sanitizer list — a sanitizer report lands in the *server's* stderr
+> instead, which is why `scripts/functional.sh` greps its log.
+
 ---
 
 ### F19 [NICE] — logout against an already-dead token returns 401, and the app must not treat that as an error
@@ -1171,13 +1194,20 @@ backend/src/
 | Target | Kind | Sources | Links |
 |---|---|---|---|
 | `atenciosamente_core` | STATIC | `domain/` + `db/` + `repository/` + `auth/` | PUBLIC `nlohmann_json`, `libpqxx::pqxx`, `Threads`; **PRIVATE** `unofficial-sodium::sodium` |
-| `atenciosamente_http` | STATIC **(new)** | `app.cpp`, `handlers/*.cpp` | PUBLIC `atenciosamente_core`, `Crow::Crow` |
+| `atenciosamente_http` | STATIC ~~(new)~~ | `app.cpp`, `handlers/*.cpp` | PUBLIC `atenciosamente_core`, `Crow::Crow` |
 | `atenciosamente_server` | EXE | `main.cpp` only | PRIVATE `atenciosamente_http` |
 | `tests_unit` | EXE | `tests/unit/*.cpp` | `atenciosamente_core`, Catch2 |
 | `tests_integration` | EXE | `tests/integration/**` | `atenciosamente_core`, `libpqxx::pqxx`, Catch2 |
-| `tests_functional` | EXE **(new)** | `tests/functional/**` | `atenciosamente_http`, Catch2 |
+| `tests_functional` | EXE ~~(new)~~ | `tests/functional/**` | `atenciosamente_http`, Catch2 |
 
 All six go in the `ENABLE_SANITIZERS` block (F18).
+
+**Superseded (2026-10-10):** the last two rows are **not** being built — S6 was
+superseded by the out-of-process Python tier, so there is no `atenciosamente_http`
+library and no `tests_functional` target. The four real targets stay as they are
+today (`atenciosamente_core`, `atenciosamente_server` with `app.cpp` + `handlers/`,
+`tests_unit`, `tests_integration`), and `backend/tests/functional/` is a pytest
+directory CMake never sees. See the banner on S6 and `PROJECT_PLAN.md` §10.
 
 ### The auth path, exact signatures
 
@@ -1342,7 +1372,7 @@ or substantially re-cut.
 | S3 | `users` table, user types, user repository | `^unit/` + `^integration/` |
 | S4 | `sessions` table + session repository | `^unit/` + `^integration/` |
 | S5 | `auth/authenticator` — the guard, with tests | `^unit/` + `^integration/` |
-| S6 | HTTP library split + functional tier + CI job (no new features) | all three tiers |
+| ~~S6~~ | ~~HTTP library split + functional tier + CI job~~ — **superseded 2026-10-10**, the tier is the Python suite; nothing to build | — |
 | S7 | `POST /users`, `POST /sessions`, `DELETE /sessions` | all three tiers |
 | S8 | Notifications become per-user and role-gated | all three tiers |
 | S9 | Config, CI, first-admin bootstrap | CI green on a cold cache |
@@ -1355,6 +1385,12 @@ or substantially re-cut.
 the original S11 unchanged. If you want to spend fewer conversations, the two
 safe merges are S4+S5 and S10+S11 — do **not** merge S6 into S7, which is the
 whole point of the re-cut.)
+
+**Superseded (2026-10-10):** S6 is gone — the functional tier already exists as the
+Python suite, so there is no infrastructure step to sequence before S7. What survives
+of the re-cut's intent is that **S7 and S8 add their own `test_*.py` cases in the
+pytest suite as they go**, rather than deferring all endpoint coverage to the end.
+Twelve steps, not thirteen.
 
 ---
 
@@ -1591,6 +1627,26 @@ PROJECT_PLAN.md §10 and commit in `Scope (Tag): summary` style.
 
 ### S6 — HTTP library split and the functional test tier
 
+> ## ⛔ SUPERSEDED — do not implement (decided 2026-10-10)
+>
+> The functional tier **has been built**, but out-of-process in Python/pytest
+> (`backend/tests/functional/`, per
+> [`PHASE_3_FUNCTIONAL_END_TO_END_TESTS.md`](PHASE_3_FUNCTIONAL_END_TO_END_TESTS.md)),
+> not in-process in C++. §8.3 of that document framed the choice; the reasoning and
+> the explicit rejection of this step are recorded in `PROJECT_PLAN.md` §10
+> (2026-10-10). **Do not build both tiers** — they cover almost the same assertions.
+>
+> So: no `atenciosamente_http` library, no `tests_functional` CMake target, no
+> `functional/` CTest prefix, no third CI job. F4's coverage argument stands and is
+> unchanged — **Phase 4 satisfies it by extending the existing pytest suite** with the
+> auth matrix (and by acting on the `TODO(ci)` in `scripts/functional.sh` if you want
+> CI gating), which is why every "`tests/functional/*.cpp`" below should be read as "a
+> new `test_*.py` in the Python suite".
+>
+> The rest of this step is kept for the record: its honest trade-offs (faster,
+> flake-free, CI-ready, but never executing `main()`, the HTTP parser or a socket) are
+> the other half of that decision.
+
 **New step.** No new features at all. This is F4's infrastructure, built and
 proven against endpoints whose behaviour you already know is correct, so that
 when S7 and S8 add security behaviour the tier is already trustworthy.
@@ -1698,7 +1754,8 @@ shape to rewrite.
 - `tests/unit/register_user_request_test.cpp`,
   `tests/unit/login_request_test.cpp` (new).
 - `tests/functional/auth_test.cpp` (new) — **this is the step that pays off
-  S6.** 201 on register with the `{token, user}` body; 409 on a duplicate;
+  S6.** (Superseded 2026-10-10: write it as `tests/functional/test_auth_api.py`
+  in the Python suite; S6's C++ tier was never built.) 201 on register with the `{token, user}` body; 409 on a duplicate;
   400 on a short password; a body containing `"role":"admin"` still produces a
   `recipient`; 201 on login; a login with an unknown email and a login with a
   wrong password return **byte-identical** status and body (F9); 401 carries
@@ -1736,7 +1793,8 @@ The original S6, with F6, F14 and F4's policy functions applied.
   `tests/unit/access_test.cpp`,
   `tests/integration/repository/notification_repository_test.cpp` (all four
   existing `TEST_CASE`s change — `insert` gains a parameter), and
-  `tests/functional/notifications_test.cpp` gains the auth matrix: no token
+  `tests/functional/test_notifications_api.py` gains the auth matrix
+  (superseded 2026-10-10: Python, not `notifications_test.cpp`): no token
   401; recipient `POST` 403; admin `POST` 201; recipient `GET` sees only its
   own rows; admin `GET` sees both; unknown `recipient_email` 400.
 - **Add to the step order note:** S8 breaks the installed Flutter app and it
@@ -1753,7 +1811,9 @@ The original S6, with F6, F14 and F4's policy functions applied.
 
 - **S9** = the original **S7** (config, CI, first admin), plus: confirm all
   three CI jobs pass on a cold vcpkg cache, and that `0002`–`0004` apply in
-  both the integration and functional jobs. Decide the session-TTL env-var
+  both the integration and functional jobs. (Superseded 2026-10-10: there are
+  **two** CI jobs, `unit` and `integration` — the functional tier is manual, and
+  wiring it up is the `TODO(ci)` block in `scripts/functional.sh`.) Decide the session-TTL env-var
   question (§6, question 3).
 - **S10, S11, S12** = the original **S8, S9, S10** unchanged, except:
   S10's `auth_client.dart` must treat a `401` from `logout` as success (F19),
@@ -1807,6 +1867,11 @@ These are yours to decide, not mine.
    promised it for three phases — but it is a real cost on a learning project
    and "not yet, and here's the §10 entry saying why" is a legitimate answer.
    If you decline, please still take `domain/access.hpp`.
+
+   **Answered (2026-10-10): the tier, but the out-of-process Python one.** S6's
+   in-process version is superseded; Phase 4 extends `backend/tests/functional/`.
+   `domain/access.hpp` is still wanted — it was recommended "even if you build the
+   tier", and it is more valuable now, since the Python tier has no CI job gating it.
 
 5. **Keep the `DELETE` in `0004` at all?** F6's version only deletes rows it
    cannot adopt, which on your dev database means "only if you have not

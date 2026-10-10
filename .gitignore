@@ -35,6 +35,14 @@ coverage/
 *.profraw
 *.profdata
 
+# ─── Python functional test tier ──────────────────────────────────────────
+# backend/tests/functional/ is a pytest suite, not a CMake target. Its venv is
+# per-machine: one built inside the dev container hardcodes container paths, so
+# the WSL host needs its own — never commit either.
+.venv/
+__pycache__/
+.pytest_cache/
+
 # ─── IDE / editor ─────────────────────────────────────────────────────────
 # VS Code: we COMMIT .vscode/ later if we add shared dev container config,
 # but cache/workspace files stay local.
