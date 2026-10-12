@@ -10,12 +10,13 @@
 #   ci     | Release    | off          | build/ci/
 #
 # Equivalent manual commands this script runs, per subcommand:
-#   format    : clang-format -i src/**/*.cpp src/**/*.hpp (always runs first)
-#   configure : cmake --preset=$PRESET
-#   build     : cmake --build --preset=$PRESET
-#   migrate   : scripts/migrate.sh (also runs automatically before run/test)
-#   run       : ./build/$PRESET/atenciosamente_server
-#   test      : ctest --preset=$PRESET
+#   format     : clang-format -i src/**/*.cpp src/**/*.hpp (always runs first)
+#   configure  : cmake --preset=$PRESET
+#   build      : cmake --build --preset=$PRESET
+#   migrate    : scripts/migrate.sh (also runs automatically before run/test)
+#   run        : ./build/$PRESET/atenciosamente_server
+#   test       : ctest --preset=$PRESET
+#   functional : scripts/functional.sh --preset $PRESET
 set -euo pipefail
 shopt -s globstar
 
@@ -25,11 +26,13 @@ PRESET="dev"
 CMD="run"
 
 usage() {
-    echo "Usage: scripts/dev.sh [--preset dev|ci] [run|test|build|migrate]"
-    echo "  run      (default) format, configure, build, migrate, then start the server"
-    echo "  test               format, configure, build, migrate, then run the Catch2 suite via ctest"
-    echo "  build              format, configure, and build only"
-    echo "  migrate            apply pending migrations/*.sql only (scripts/migrate.sh) — no build"
+    echo "Usage: scripts/dev.sh [--preset dev|ci] [run|test|build|migrate|functional]"
+    echo "  run        (default) format, configure, build, migrate, then start the server"
+    echo "  test                 format, configure, build, migrate, then run the Catch2 suite via ctest"
+    echo "  build                format, configure, and build only"
+    echo "  migrate              apply pending migrations/*.sql only (scripts/migrate.sh) — no build"
+    echo "  functional           format, configure, build, then run the pytest suite via scripts/functional.sh"
+    echo "                       (no pytest pass-through here — call scripts/functional.sh -- -k ... directly)"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -38,7 +41,7 @@ while [[ $# -gt 0 ]]; do
             PRESET="$2"
             shift 2
             ;;
-        run|test|build|migrate)
+        run|test|build|migrate|functional)
             CMD="$1"
             shift
             ;;
@@ -85,5 +88,8 @@ case "$CMD" in
         scripts/migrate.sh
         echo "==> Starting server ($PRESET)"
         exec "./build/$PRESET/atenciosamente_server"
+        ;;
+    functional)
+        exec scripts/functional.sh --preset "$PRESET"
         ;;
 esac
