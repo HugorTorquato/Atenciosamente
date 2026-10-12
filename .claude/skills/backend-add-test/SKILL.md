@@ -7,7 +7,7 @@ description: >-
   coverage, or when asked to test a specific function or endpoint. Covers tier
   selection, file placement, CMakeLists.txt wiring, the per-test
   transaction-rollback isolation pattern for integration tests, and the
-  manual-only functional suite driven by scripts/functional.sh.
+  functional suite driven by scripts/functional.sh.
 ---
 
 # Add a backend test
@@ -15,7 +15,7 @@ description: >-
 Three tiers exist. The two C++ ones are CTest-discovered binaries defined in
 `backend/tests/CMakeLists.txt`, each with its own CI job
 (`.github/workflows/backend-ci.yml`). The third is a Python/pytest suite that is **not** a
-build target, **not** in CTest, and **has no CI job** — see §4. Pick the tier by asking
+build target and **not** in CTest, but does have its own CI job — see §4. Pick the tier by asking
 **what the code under test touches**, not by how important the code feels.
 
 ## 1. Pick the tier
@@ -32,10 +32,12 @@ logic needs no database — don't reach for `pqxx::work` to test a validation ru
 that runs SQL can only be proven correct against a real Postgres — a mock would just test
 your assumptions about Postgres, not Postgres itself.
 
-The functional tier is the **last** resort, not the convenient one. It is the slowest, the
-only one that needs a running server, the only one that destroys your dev data, and the
-only one with no CI safety net — so a bug provable in `domain/` must be tested there, even
-when the same bug is also visible over HTTP. Reach for §4 only when the thing you need to
+The functional tier is the **last** resort, not the convenient one. It is by far the
+slowest, the only one that needs a running server, and the only one that destroys your dev
+data — so a bug provable in `domain/` must be tested there, even when the same bug is also
+visible over HTTP. A failure here also localises worst: the assertion is in a different
+process from the code that broke, so there is no stack trace, only a status code and a
+server log. Reach for §4 only when the thing you need to
 prove *is* the HTTP wiring: a status code, a header, route registration, or a property that
 only holds end to end (e.g. "a rejected request writes no row").
 
@@ -84,11 +86,12 @@ a `#include` or a CMake target to "improve" it; losing that property is the whol
 
 **Read these three before you run anything:**
 
-1. ⚠️ **It is MANUAL. There is no CI job.** A regression here is caught only when someone
-   runs the script. The wiring steps for adding the job later are in the `TODO(ci)` block
-   at the top of `backend/scripts/functional.sh`; `PROJECT_PLAN.md` §8 marks the box as
-   deliberately unbuilt and §10 carries the reasoning. Don't assume CI has your back, and
-   don't silently build the CI job as a side effect of another task.
+1. **It runs in CI** as the `functional` job in `.github/workflows/backend-ci.yml`, and it
+   gates merges. That job is the one place in the workflow built with `--preset dev`
+   instead of `ci`, deliberately, so the server runs under ASan/UBSan while taking load —
+   don't "fix" that inconsistency. It depends on three properties of
+   `scripts/functional.sh`: `--preset` selects the build dir, everything after `--` reaches
+   pytest, and any failure exits non-zero. Preserve all three.
 2. ⚠️ **It `TRUNCATE`s the dev `notifications` table before every test.** The autouse
    `clean_database` fixture does it, against the DB named by `POSTGRES_DB` — your dev
    database. Dev data does not survive a run.

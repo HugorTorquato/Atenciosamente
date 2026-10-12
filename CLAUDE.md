@@ -74,8 +74,9 @@ before a server is started.
 it isn't a CMake target or a CTest entry at all; there's nothing to configure or exclude.
 Before running it:
 
-- ⚠️ **Manual only, no CI job.** A regression there is caught only when someone runs it.
-  Wiring steps live in the `TODO(ci)` block atop `backend/scripts/functional.sh`.
+- **CI runs it too** (the `functional` job, since 2026-10-12), so you are not the only
+  safety net — but CI builds it with `--preset dev` for the sanitizers, and still can't
+  catch what you only see locally.
 - ⚠️ **It `TRUNCATE`s the dev `notifications` table before every test** — dev data does
   not survive a run.
 - ⚠️ **Never alongside a dev server or a `ctest` run.** The script refuses to start when

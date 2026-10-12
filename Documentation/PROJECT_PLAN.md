@@ -208,20 +208,25 @@ Rule: we don't skip rungs prematurely.
        │
        ├──────────────┬──────────────┬──────────────┐
        ▼              ▼              ▼              ▼
- ┌───────────┐  ┌───────────┐  ╷╌╌╌╌╌╌╌╌╌╌╌╷  ┌───────────┐
- │    unit   │  │integration│  ╎ functional╎  │   lint /  │
- │   tests   │  │   tests   │  ╎   tests   ╎  │   format  │
- └───────────┘  └───────────┘  ╵╌╌╌╌╌╌╌╌╌╌╌╵  └───────────┘
-    (built)        (built)       NOT BUILT       (built)
+ ┌───────────┐  ┌───────────┐  ┌───────────┐  ╷╌╌╌╌╌╌╌╌╌╌╌╷
+ │    unit   │  │integration│  │ functional│  ╎   lint /  ╎
+ │   tests   │  │   tests   │  │   tests   │  ╎   format  ╎
+ └───────────┘  └───────────┘  └───────────┘  ╵╌╌╌╌╌╌╌╌╌╌╌╵
+    (built)        (built)        (built)       NOT BUILT
 ```
 
-⚠️ **The `functional` box is dashed on purpose: that job does not exist.** The functional
-tier landed in Phase 3 but is **manual only** — nothing automated runs it, so a functional
-regression is caught only when someone runs the script by hand. This is a deliberate
-deferral, not an oversight: the exact wiring steps are in the `TODO(ci)` block at the top
-of `backend/scripts/functional.sh`, and §10's 2026-10-10 entries carry the reasoning.
-Phase 4 (auth, where an access-control regression is silent and serious) is the expected
-trigger to actually build it.
+**Three of the four jobs exist and gate merges** — `unit`, `integration` and, since
+2026-10-12, `functional`. The dashed box is now `lint / format`: there is **no** such job in
+any workflow (checked: `backend-ci.yml` defines exactly `unit`, `integration`, `functional`).
+Formatting runs only locally, via the `clang-format` step `scripts/dev.sh` does before every
+build, so a commit that skips the script can land unformatted. Adding the job is the
+remaining gap in this diagram.
+
+The `functional` job is the one that does **not** run `ctest`: the tier is a Python/pytest
+suite, not a CTest target, so the job runs `scripts/functional.sh`, which starts a real
+server and stops it again. It is also built with **`--preset dev`, not `ci`** — the only job
+that deviates — because `dev` is the preset carrying ASan/UBSan, and a real server under real
+concurrent load is precisely where those earn their keep. See §10's 2026-10-12 entry.
 
 ### Fixes for past CI pain
 
@@ -358,3 +363,6 @@ Running list of notable decisions, in order. New entries go at the bottom.
 | 2026-10-12 | Phase 3 S3: `PUT /notifications` is asserted to return **405**, not 404 — verified empirically against Crow/master rather than assumed | Both GET and POST are registered on the same `"/notifications"` path in `src/app.cpp`, so it was an open question whether Crow's router distinguishes "path unknown" from "path known, method not allowed". It does: a method with no handler on an otherwise-registered path gets `405 Method Not Allowed` (confirmed for `PUT`, `DELETE` and `PATCH`, and for `PUT /`), while an unregistered path gets `404 Not Found`. Crow answers the 405 itself, before any handler runs, so its body is the plain-text `405 Method Not Allowed` and **not** our `{"error": ...}` JSON shape — the test therefore asserts only the status code. Crow also sends no `Allow` header, which RFC 9110 requires on a 405; left as-is because no client needs it, but it is a real (small) spec deviation to remember if a future client starts discovering methods |
 | 2026-10-12 | Phase 3 S3: the 13 contract cases are 8 pytest functions — one per behaviour — with `@pytest.mark.parametrize` used **only** for the five 400-validation branches, and the "a rejected request writes nothing" case folded into that same parametrized test rather than standing alone | A failure should name the broken part of the contract, which is what one-function-per-behaviour buys; parametrize gives the same property for the 400s because pytest reports each input as its own test id (`-k invalid` selects exactly those five). The five 400s really are one behaviour with five inputs, whereas the empty-list/create/round-trip/ordering cases are four different behaviours and were deliberately not collapsed. "Writes nothing" belongs *inside* the parametrized test because the assertion is per-branch (every rejection must write nothing, not just one of them) and because it is the assertion no lower tier can make: a unit test can prove the validator returned an error, only an outside observer can prove no row was written |
 | 2026-10-12 | Phase 3 S2 (late addition): `scripts/dev.sh functional` dispatches format → configure → build → `exec scripts/functional.sh --preset "$PRESET"`, with **no** pytest pass-through | `functional.sh` deliberately does not build (it checks for the binary and points at `dev.sh build`), so routing through `dev.sh` is precisely what supplies the build — that is the subcommand's whole reason to exist. Pass-through was rejected rather than half-built: `dev.sh`'s argument loop rejects unknown tokens, so a `--` case would have to be added that is meaningless for `run`/`test`/`build`/`migrate`, and the already-working `scripts/functional.sh -- -k invalid` covers the subsetting case. The usage text says so explicitly so nobody discovers it by hitting the `Unknown argument: --` error |
+| 2026-10-12 | Phase 3 follow-up: the functional tier **is now wired into CI** as a third gating job (`functional` in `.github/workflows/backend-ci.yml`), **superseding the 2026-10-10 "CI is deferred" entry below**. It runs `scripts/functional.sh --preset dev -- --junit-xml=...` against a `postgres:16` service container, with no separate migrate step because the script migrates itself | The deferral's cost was that `src/handlers/` and `src/app.cpp` had no automated coverage at all — the only tier exercising them ran when someone remembered to. Phase 4 (auth) was named as the trigger and is next, so the job was built before the code that needs it rather than after. Gating from the first run rather than starting advisory, per §8's "tests that exist must pass": the flake surface is already mitigated in the script (readiness polling, fail-fast if the server dies during startup, per-request read timeouts) and the suite had run green 6+ consecutive times locally. `POSTGRES_POOL_SIZE` is deliberately **not** set at job level — the script sets `2` itself and a job-level value would be silently shadowed. The job uploads **both** the JUnit XML and `build/dev/functional-server.log`, because pytest runs in a different process from the server, so a crash or sanitizer report is visible only in that log |
+| 2026-10-12 | The CI functional job builds with **`--preset dev` (Debug + ASan/UBSan), not `--preset ci` (Release)** — the only job in the workflow that deviates, and a deliberate departure from the `TODO(ci)` block that had specified `ci` | The `ci` preset has `ENABLE_SANITIZERS` off, so running the functional tier there would have discarded the property §10's 2026-10-10 sanitizer entry calls the most valuable thing in the phase: a real server process under real concurrent load with instrumentation on. Worse, `functional.sh`'s own grep for `ERROR: AddressSanitizer`/`runtime error:` would have become dead code in CI — a check that can never fire. The cost of choosing `dev` is near zero: the suite runs in about a second so ASan's runtime overhead is irrelevant, Debug compiles *faster* than Release, and the vcpkg binary cache is shared regardless because build type affects only our own translation units. Accepted consequence: a genuine ASan finding under concurrent load will surface here first, and a red run should be read as a possible real `ConnectionPool` bug before being dismissed as CI flake |
+| 2026-10-12 | Correction to this log: §8's CI diagram previously labelled the `lint / format` box as built. It is **not** — no workflow defines such a job (`backend-ci.yml` has exactly `unit`, `integration`, `functional`) | The mislabel was introduced on 2026-10-12 while marking the then-unbuilt `functional` box, and is recorded rather than silently fixed because the diagram is the thing future sessions read to decide what CI covers. `clang-format` currently runs only locally, as the first step of `scripts/dev.sh`, so a commit that bypasses the script can land unformatted — §8's "Lint in parallel, not as a prerequisite" remains unfulfilled |

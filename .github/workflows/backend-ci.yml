@@ -37,7 +37,8 @@ permissions:
   contents: read
 
 # ── Job split rationale ─────────────────────────────────────────────────────
-# Two independent jobs, `unit` and `integration` — no `needs:` between them.
+# Three independent jobs — `unit`, `integration`, `functional` — no `needs:`
+# between any of them.
 #
 # Per PROJECT_PLAN.md §8 ("each tier in its own job — one broken integration
 # test doesn't hide a real unit test failure"), the tiers must report as
@@ -57,9 +58,15 @@ permissions:
 #     behavior); gating one behind the other's success doesn't add
 #     information, it only adds latency to one signal when the other job
 #     happens to be slow or briefly flaky.
-# Each job builds fully via the same `cmake --preset ci` / `cmake --build
-# --preset ci` pattern from before the split, then filters CTest to just its
+# The two Catch2 jobs build via the same `cmake --preset ci` / `cmake --build
+# --preset ci` pattern from before the split, then filter CTest to just their
 # own tier — see the TEST_PREFIX note on the "Run … tests" step below.
+#
+# `functional` is the odd one out and deliberately so: it is a Python/pytest
+# suite, not a CTest target, so it cannot be selected with a `-R` pattern — it
+# needs a *running server*, which `scripts/functional.sh` starts and stops. It
+# is also the one job built with `--preset dev` rather than `ci`; see the
+# sanitizer note on that job.
 jobs:
   unit:
     name: Unit tests
@@ -263,4 +270,133 @@ jobs:
         with:
           name: test-results-integration
           path: backend/test-results-integration.xml
+          retention-days: 30
+
+  functional:
+    name: Functional tests (HTTP, sanitized)
+    runs-on: ubuntu-24.04
+
+    # Same Postgres sidecar as the integration job, for the same reason: reached
+    # via "localhost" (see that job's note), health-checked so no manual wait.
+    # The suite TRUNCATEs the notifications table before every test, which is
+    # destructive locally but meaningless here — this database is created fresh
+    # for the job and thrown away with it.
+    services:
+      db:
+        image: postgres:16
+        env:
+          POSTGRES_USER: atenciosamente
+          POSTGRES_PASSWORD: devpassword
+          POSTGRES_DB: atenciosamente_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atenciosamente -d atenciosamente_dev"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # Same names/values as the integration job, with one deliberate omission:
+      # no POSTGRES_POOL_SIZE. scripts/functional.sh sets it to 2 itself (below
+      # the concurrency test's 8 threads, so pool contention is guaranteed
+      # rather than lucky), and setting it here would be silently shadowed.
+      POSTGRES_USER: atenciosamente
+      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB: atenciosamente_dev
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      VCPKG_ROOT: /opt/vcpkg
+      VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+      # Crow and libpq hold allocations at exit that aren't our bugs. The
+      # script's log grep already excludes LeakSanitizer; this keeps those
+      # reports out of the uploaded log entirely so it stays readable.
+      ASAN_OPTIONS: detect_leaks=0
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── 2. Build tools ───────────────────────────────────────────────────────
+      # The integration job's set, plus python3-venv. Ubuntu 24.04 marks its
+      # system Python externally managed (PEP 668) and ships no system pip, so
+      # a venv is the only sanctioned install target — python3-venv is what
+      # provides ensurepip, which is what gives the venv its own pip. Same
+      # package, same reason, as Dockerfile.dev. postgresql-client is still
+      # needed: scripts/migrate.sh shells out to psql.
+      - name: Install build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            ninja-build \
+            pkg-config \
+            libssl-dev \
+            zip unzip \
+            bison flex \
+            autoconf automake libtool \
+            postgresql-client \
+            python3-venv
+          sudo update-alternatives \
+            --install /usr/bin/gcc gcc /usr/bin/gcc-13 100
+          sudo update-alternatives \
+            --install /usr/bin/g++ g++ /usr/bin/g++-13 100
+
+      # ── 3. vcpkg ─────────────────────────────────────────────────────────────
+      - name: Install vcpkg
+        run: |
+          sudo git clone --depth 1 https://github.com/microsoft/vcpkg $VCPKG_ROOT
+          sudo $VCPKG_ROOT/bootstrap-vcpkg.sh -disableMetrics
+          sudo chmod -R a+rw $VCPKG_ROOT
+
+      # ── 4+5. Configure & build — note the preset ─────────────────────────────
+      # `dev`, not `ci`, and this is the one intentional inconsistency in this
+      # workflow. The `dev` preset is Debug + ASan/UBSan; `ci` is Release with
+      # sanitizers off. This is the only tier that runs the server as a real
+      # process under real concurrent load, which is exactly the situation where
+      # ASan/UBSan earn their keep — and on the `ci` preset the sanitizer-report
+      # grep in scripts/functional.sh could never fire, making the check dead
+      # code. The cost is near zero: the suite runs in about a second, so ASan's
+      # runtime overhead is irrelevant, Debug compiles faster than Release, and
+      # the vcpkg binary cache is shared with the other jobs regardless (build
+      # type affects only our own translation units, not the dependencies).
+      - name: Configure
+        run: cmake --preset dev
+        working-directory: backend
+
+      - name: Build
+        run: cmake --build --preset dev
+        working-directory: backend
+
+      # ── 6. Test ──────────────────────────────────────────────────────────────
+      # No separate migrate step, unlike the integration job: functional.sh runs
+      # scripts/migrate.sh itself as its step 3.
+      #
+      # The script does the whole lifecycle — venv bootstrap, :8080 occupancy
+      # check (free here, the job owns the machine), migrate, background server,
+      # readiness poll, pytest, trap-guaranteed shutdown — and exits non-zero on
+      # any failure, which is what fails this job and blocks the merge. It also
+      # fails the run if the server's log contains an ASan/UBSan report even
+      # when every assertion passed, because pytest is a separate process and
+      # cannot observe the server's stderr.
+      #
+      # Everything after `--` is forwarded to pytest. Note this is pytest's
+      # --junit-xml, not ctest's --output-junit; the path is relative to
+      # backend/, matching the other jobs' artifact paths.
+      - name: Run functional tests
+        run: ./scripts/functional.sh --preset dev -- --junit-xml=test-results-functional.xml
+        working-directory: backend
+
+      # ── 7. Upload test results + the server log ──────────────────────────────
+      # Two paths, not one. The server runs in a different process from pytest,
+      # so a crash, a sanitizer report, or a startup failure is visible *only*
+      # in its log — without it a red run can be undebuggable from CI alone.
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-functional
+          path: |
+            backend/test-results-functional.xml
+            backend/build/dev/functional-server.log
           retention-days: 30

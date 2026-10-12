@@ -13,14 +13,15 @@ mobile-only commit never triggers the backend pipeline and vice versa.
 ## Backend — `backend-ci.yml`
 
 Triggers on `push`/`pull_request` to `main` when `backend/**` or the workflow file itself
-changes. Two independent jobs run in parallel (no `needs:` between them — see the "Job split
-rationale" comment in the workflow file for why) so a broken integration test can't hide a
-real unit-test failure, and vice versa.
+changes. Three independent jobs run in parallel (no `needs:` between any of them — see the
+"Job split rationale" comment in the workflow file for why) so one tier's failure can't hide
+another's.
 
 ```mermaid
 flowchart TD
     trig(["push / PR → main<br/>(backend/** changed)"]) --> unit
     trig --> integ
+    trig --> func
 
     subgraph unit["Job: unit — “Unit tests”"]
         direction TB
@@ -43,21 +44,47 @@ flowchart TD
         svc -. reachable at localhost:5432 .-> i5
         svc -. reachable at localhost:5432 .-> i6
     end
+
+    subgraph func["Job: functional — “Functional tests (HTTP, sanitized)”"]
+        direction TB
+        fsvc[("services: db<br/>postgres:16<br/>health-checked via pg_isready")]
+        f1[Checkout] --> f2["Install build tools<br/>+ postgresql-client + python3-venv"]
+        f2 --> f3[Install vcpkg]
+        f3 --> f4["Configure + Build<br/>cmake --preset dev ⚠️ not ci<br/>(Debug + ASan/UBSan)"]
+        f4 --> f5["scripts/functional.sh --preset dev<br/>-- --junit-xml=…"]
+        f5 --> f6["Upload JUnit XML<br/>+ functional-server.log"]
+        f5 -. "the script itself does:<br/>venv → :8080 check → migrate →<br/>background server → readiness poll →<br/>pytest → trap shutdown → sanitizer grep" .-> f5
+        fsvc -. reachable at localhost:5432 .-> f5
+    end
 ```
 
-Both jobs build the same two Catch2 binaries (`tests_unit`, `tests_integration`); what
-differs is which one's tests each job runs. `backend/tests/CMakeLists.txt` tags every CTest
-name with a prefix per binary, so a single `-R` pattern selects one tier without touching the
-other:
+The two Catch2 jobs build the same two binaries (`tests_unit`, `tests_integration`); what
+differs is which one's tests each runs. `backend/tests/CMakeLists.txt` tags every CTest name
+with a prefix per binary, so a single `-R` pattern selects one tier without touching the
+other. `functional` can't work that way — it isn't a CTest target at all:
 
-| Job | Filter | Covers |
+| Job | Runs | Covers |
 |---|---|---|
 | `unit` | `ctest -R '^unit/'` | `src/domain/` — pure logic, no I/O |
-| `integration` | `ctest -R '^integration/'` | `src/repository/` — real SQL against the `services: db` sidecar |
+| `integration` | `ctest -R '^integration/'` | `src/repository/` + `ConnectionPool` — real SQL against the `services: db` sidecar |
+| `functional` | `scripts/functional.sh --preset dev` | `src/handlers/` + `src/app.cpp` — real HTTP against a real server process |
 
-Both jobs share the same vcpkg binary cache (`VCPKG_BINARY_SOURCES`) — building twice costs
-seconds once warm, not the ~3 minute cold build. `handlers/`/`app.cpp` have no CI tier yet
-(functional/E2E tests are Phase 2+, `PROJECT_PLAN.md` §8).
+All three share the vcpkg binary cache (`VCPKG_BINARY_SOURCES`) — building three times costs
+seconds once warm, not the ~3 minute cold build.
+
+**Two things about `functional` that look like mistakes but aren't:**
+
+- **It builds `--preset dev`, not `ci`.** `ci` is Release with sanitizers off. This is the
+  only tier that runs the server as a real process under real concurrent load, which is
+  exactly where ASan/UBSan pay off — and on `ci` the sanitizer-report grep inside
+  `functional.sh` could never fire, making it dead code. The suite runs in about a second,
+  so the overhead is free. See `PROJECT_PLAN.md` §10 (2026-10-12).
+- **It has no "Apply migrations" step.** `functional.sh` runs `scripts/migrate.sh` itself, so
+  adding one would duplicate it.
+
+Still missing from this workflow: a **lint/format job**. `clang-format` runs only locally as
+the first step of `scripts/dev.sh`, so a commit that bypasses the script can land
+unformatted — §8's "Lint in parallel, not as a prerequisite" is not yet built.
 
 ---
 

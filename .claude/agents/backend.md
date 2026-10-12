@@ -43,11 +43,11 @@ running narration of what each line does.
   (`tests_unit`/`tests_integration`), separate CI jobs (`.github/workflows/backend-ci.yml`).
 - `backend/tests/functional/` — **Python/pytest**, black-box HTTP against a real running
   server (Phase 3). Covers `handlers/`/`app.cpp`. Imports nothing from the project, so it is
-  **not** a CMake target, **not** in CTest, and **has no CI job**. Driven by
-  `scripts/functional.sh`. Three things to know before running it: it is **manual only**
-  (wiring steps for a CI job are in that script's `TODO(ci)`), it **`TRUNCATE`s the dev
-  `notifications` table before every test**, and it **must not run alongside a dev server or
-  a `ctest` run**.
+  **not** a CMake target and **not** in CTest, but it has its own gating CI job
+  (`functional`, built with `--preset dev` for the sanitizers). Driven by
+  `scripts/functional.sh`. Two things to know before running it locally: it
+  **`TRUNCATE`s the dev `notifications` table before every test**, and it **must not run
+  alongside a dev server or a `ctest` run**.
 
 ## Build/test loop (inside the dev container)
 
@@ -109,9 +109,10 @@ add tests the developer didn't ask about either.
 a change to a handler, a route registration, or a response's status/headers/body shape is
 coverable — offer a functional test for it instead of flagging a gap. Two standing rules,
 though: the lowest tier that can catch the bug still wins (a validation bug belongs in
-`tests/unit/`, even when it's also visible over HTTP), and the functional tier is the only
-one with **no CI safety net**, so never treat it as the default landing place for coverage
-that a Catch2 tier could hold.
+`tests/unit/`, even when it's also visible over HTTP), and a functional failure localises
+worst — the assertion is in a different process from the code that broke, so there's no
+stack trace, only a status code and a server log. Don't make it the default landing place
+for coverage a Catch2 tier could hold.
 
 ## Phase 1 status
 S1–S6 are done and committed: migration, RAII connection layer, repository read/write paths,

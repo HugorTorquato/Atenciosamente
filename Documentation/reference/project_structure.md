@@ -18,8 +18,8 @@ This document explains every folder and file in the repository and why it exists
 │   └── devcontainer.json   ← VS Code Dev Containers config (opens inside backend container)
 ├── .github/
 │   └── workflows/
-│       └── backend-ci.yml  ← GitHub Actions: unit + integration jobs on every push
-│                              (NO functional job — that tier is manual, see below)
+│       └── backend-ci.yml  ← GitHub Actions: unit + integration + functional jobs
+│                              (functional builds --preset dev, for the sanitizers)
 ├── backend/                ← C++ server (see below)
 ├── mobile/                 ← Flutter app (see below)
 └── Documentation/          ← architecture decisions, phase prompts, concept guides
@@ -135,12 +135,12 @@ scripts/dev.sh test-all     # all three tiers, sequentially: ctest, then pytest
 CMake target and not a CTest entry — `ctest --preset=dev` excludes it by construction, not
 by configuration. Three things to know before running it:
 
-- ⚠️ **Manual only — there is no CI job.** A functional regression is caught only when
-  someone runs the script. The wiring steps for adding the job are in the `TODO(ci)` block
-  at the top of `backend/scripts/functional.sh`; `PROJECT_PLAN.md` §8 marks the box as
-  deliberately unbuilt.
+- **It runs in CI** as the `functional` job, gating merges — uniquely built with
+  `--preset dev` rather than `ci`, so the server is under ASan/UBSan while taking the
+  concurrency test's load. The job uploads the server log as an artifact, since a crash or
+  sanitizer report is visible only there.
 - ⚠️ **It `TRUNCATE`s the dev `notifications` table before every test.** Dev data does not
-  survive a run.
+  survive a run — locally. In CI the database is created per job and discarded with it.
 - ⚠️ **Don't run it alongside a dev server or a `ctest` run.** The script refuses to start
   while `:8080` is taken; the `ctest` clash is uncaught and would yank rows out from under
   an open transaction.

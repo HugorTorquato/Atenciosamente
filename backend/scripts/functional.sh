@@ -36,11 +36,17 @@
 # missing. This script deliberately does not build, so it stays fast and never
 # surprises you with a 20-minute compile.
 #
-# TODO(ci): nothing calls this automatically yet — CI is deferred, not rejected
-# (PROJECT_PLAN.md §8's `functional` job is knowingly unbuilt). It is written to
-# stay CI-callable with no changes: --preset ci, pass-through pytest args, and a
-# non-zero exit on any failure. Wiring steps are in
-# PHASE_3_FUNCTIONAL_END_TO_END_TESTS.md §S2.
+# CI calls this. The `functional` job in .github/workflows/backend-ci.yml runs
+#   ./scripts/functional.sh --preset dev -- --junit-xml=test-results-functional.xml
+# on every push and PR touching backend/, and a non-zero exit here fails the job
+# and blocks the merge. Three properties that job depends on — don't break them:
+#   1. --preset selects the build dir, so CI can pick its own.
+#   2. Everything after `--` reaches pytest (that's how --junit-xml gets in).
+#   3. Any failure exits non-zero, including a sanitizer report in the server log
+#      when every assertion passed.
+# Note CI uses --preset dev, NOT ci: `dev` is the preset with ASan/UBSan, and a
+# real server under real concurrent load is the whole reason that matters. See
+# that job's comment and PROJECT_PLAN.md §10.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

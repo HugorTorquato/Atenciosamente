@@ -1098,6 +1098,18 @@ export POSTGRES_DB=atenciosamente_dev
 
 ## 8. CI is deferred — and the Phase 4 collision
 
+> ✅ **RESOLVED 2026-10-12 — CI is no longer deferred.** The `functional` job exists in
+> `.github/workflows/backend-ci.yml` and gates merges. It runs
+> `scripts/functional.sh --preset dev -- --junit-xml=…` against a `postgres:16` service
+> container; `--preset dev` rather than `ci` so the server stays under ASan/UBSan while
+> taking the concurrency test's load. See `PROJECT_PLAN.md` §10 (2026-10-12).
+>
+> **The deliberation below is kept as written, not rewritten.** It records why the deferral
+> was the right call *at the time* and what it cost — §8.1's "a test tier nobody runs
+> automatically protects nothing" is exactly the argument that eventually got the job built,
+> and §8.2's route back to CI is the one that was taken. §8.3's collision with
+> `PHASE_4_REVIEW_AND_ADJUSTMENTS.md` §S6 still stands and is still unresolved there.
+
 ### 8.1 What manual-only costs you
 
 Be clear-eyed: **a test tier nobody runs automatically protects nothing.** This suite helps
