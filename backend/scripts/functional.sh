@@ -93,8 +93,23 @@ fi
 # ── 1. Python venv ───────────────────────────────────────────────────────────
 # Ubuntu 24.04's system Python is externally managed (PEP 668), so a venv is the
 # only sanctioned place to install into. Created once; reused after that.
-# Note: a venv built in here records container paths, so it is not usable from
-# the WSL host — make a separate one there if you want that workflow.
+#
+# TODO(host-run): RUNNING THIS SCRIPT FROM THE WSL HOST IS BROKEN. Two reasons,
+# and the second is the blocking one:
+#   1. The venv sits on the bind mount, so the host can see it, but it hardcodes
+#      container paths — $VENV/bin/pytest is shebanged #!/workspace/... and dies
+#      with "cannot execute: required file not found". The -x guard below does
+#      not catch this: the file exists and IS executable, so creation is skipped
+#      and the failure surfaces later, confusingly. Testing it by actually
+#      running `pytest --version` (and rebuilding when that fails) would fix it.
+#   2. Even with a working host venv it still would not run: build/dev/
+#      atenciosamente_server needs libasan.so.8, which is only in the container.
+# So this script is container-only by design, not by accident. The host workflow
+# that DOES work is the standalone one — a host-built venv running
+# `pytest tests/functional` with ATENCIOSAMENTE_BASE_URL=http://localhost:8080
+# against the container's published port, no binary involved. That needs a
+# separate venv path (.venv is taken by the container's), which is why this is
+# a TODO and not a one-line fix. Deferred deliberately.
 if [[ ! -x "$VENV/bin/pytest" ]]; then
     echo "==> Creating venv ($VENV)"
     python3 -m venv "$VENV"
