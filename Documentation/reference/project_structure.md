@@ -45,7 +45,8 @@ backend/
 │   └── 0001_create_notifications.sql  ← SQL schema migration, applied by scripts/migrate.sh
 ├── scripts/
 │   ├── migrate.sh          ← idempotent migration runner (tracks applied migrations)
-│   ├── dev.sh              ← `run`/`test`/`build`/`migrate`/`functional` wrapper, calls migrate.sh first
+│   ├── dev.sh              ← `run`/`test`/`build`/`migrate`/`functional`/`test-all` wrapper
+│   │                         (`test-all` = ctest then pytest, sequentially), calls migrate.sh first
 │   ├── functional.sh       ← runs the functional tier: venv → :8080 check → migrate →
 │   │                         background server → readiness poll → pytest → trap cleanup
 │   └── runManualFunctionalTests.sh  ← pytest against a server already running (run from scripts/)
@@ -127,6 +128,7 @@ cmake --preset=dev          # configure
 cmake --build --preset=dev  # compile
 ctest --preset=dev          # run the C++ tiers (unit + integration)
 scripts/dev.sh functional   # run the Python functional tier (NOT part of ctest)
+scripts/dev.sh test-all     # all three tiers, sequentially: ctest, then pytest
 ```
 
 **The functional tier is the odd one out.** It's a Python/pytest suite, so it is not a

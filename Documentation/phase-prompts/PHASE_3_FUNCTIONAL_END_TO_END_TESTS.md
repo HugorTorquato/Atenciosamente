@@ -939,7 +939,15 @@ haven't rebuilt, `python3 -m venv` fails with "ensurepip is not available"; fix 
 scripts/dev.sh functional            # format → configure → build → functional.sh
 # or, if already built:
 scripts/functional.sh
+# or every tier at once, ctest first then pytest:
+scripts/dev.sh test-all
 ```
+
+`test-all` exists because the two tiers must run **sequentially, never concurrently** —
+§7.6's last row explains what the overlap would break. `ctest` runs first (seconds, no
+server needed) and a failure stops the run there, so you never pay for a server start to
+learn a unit test was red. Verified: 8 Catch2 + 14 pytest = 22, and a deliberately broken
+unit test exits `8` without starting a server.
 
 What you should see:
 

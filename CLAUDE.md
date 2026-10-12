@@ -63,7 +63,12 @@ cmake --preset=dev          # configure (Debug + ASan/UBSan)
 cmake --build --preset=dev  # compile
 ctest --preset=dev          # C++ tiers only: unit + integration
 scripts/dev.sh functional   # Python functional tier (format → build → functional.sh)
+scripts/dev.sh test-all     # every tier, in order: ctest first, then the pytest suite
 ```
+
+`test-all` runs the two tiers **sequentially, never at once** — the pytest suite truncates
+the table the integration tests use. `ctest` goes first and a failure stops the run there,
+before a server is started.
 
 `ctest --preset=dev` does **not** include the functional tier — it's a pytest suite, so
 it isn't a CMake target or a CTest entry at all; there's nothing to configure or exclude.

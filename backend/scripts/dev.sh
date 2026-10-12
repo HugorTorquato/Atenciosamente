@@ -17,6 +17,12 @@
 #   run        : ./build/$PRESET/atenciosamente_server
 #   test       : ctest --preset=$PRESET
 #   functional : scripts/functional.sh --preset $PRESET
+#   test-all   : ctest --preset=$PRESET, then scripts/functional.sh --preset $PRESET
+#
+# The two test tiers run SEQUENTIALLY in test-all, never at once: the functional
+# suite TRUNCATEs notifications, which would yank rows out from under an
+# integration test's open transaction. ctest goes first — it is seconds long and
+# needs no server, so a broken unit test fails before a server is ever started.
 set -euo pipefail
 shopt -s globstar
 
@@ -26,13 +32,15 @@ PRESET="dev"
 CMD="run"
 
 usage() {
-    echo "Usage: scripts/dev.sh [--preset dev|ci] [run|test|build|migrate|functional]"
+    echo "Usage: scripts/dev.sh [--preset dev|ci] [run|test|build|migrate|functional|test-all]"
     echo "  run        (default) format, configure, build, migrate, then start the server"
     echo "  test                 format, configure, build, migrate, then run the Catch2 suite via ctest"
     echo "  build                format, configure, and build only"
     echo "  migrate              apply pending migrations/*.sql only (scripts/migrate.sh) — no build"
     echo "  functional           format, configure, build, then run the pytest suite via scripts/functional.sh"
     echo "                       (no pytest pass-through here — call scripts/functional.sh -- -k ... directly)"
+    echo "  test-all             every tier, in pyramid order: ctest first, then the pytest suite"
+    echo "                       (sequential on purpose — the pytest suite truncates the table ctest uses)"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -41,7 +49,7 @@ while [[ $# -gt 0 ]]; do
             PRESET="$2"
             shift 2
             ;;
-        run|test|build|migrate|functional)
+        run|test|build|migrate|functional|test-all)
             CMD="$1"
             shift
             ;;
@@ -90,6 +98,16 @@ case "$CMD" in
         exec "./build/$PRESET/atenciosamente_server"
         ;;
     functional)
+        exec scripts/functional.sh --preset "$PRESET"
+        ;;
+    test-all)
+        scripts/migrate.sh
+        echo "==> Running Catch2 tests ($PRESET)"
+        ctest --preset="$PRESET"
+        # set -e already stops here if ctest failed, which is the intent: a red
+        # unit test makes the functional results noise. exec so functional.sh's
+        # exit code becomes this script's.
+        echo "==> Running functional tests ($PRESET)"
         exec scripts/functional.sh --preset "$PRESET"
         ;;
 esac

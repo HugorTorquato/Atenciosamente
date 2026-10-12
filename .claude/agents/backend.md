@@ -70,7 +70,12 @@ scripts/dev.sh functional               # format → configure → build → fun
 scripts/functional.sh                   # if already built
 scripts/functional.sh -- -k <substring> # subset; pass-through works here, not via dev.sh
 scripts/runManualFunctionalTests.sh     # against a server already up (run from scripts/)
+
+scripts/dev.sh test-all                 # every tier: ctest first, then the pytest suite
 ```
+`test-all` is the sequential combination — the tiers must never run concurrently (the
+pytest suite's `TRUNCATE` would hit an integration test's open transaction), and a ctest
+failure stops the run before a server is started.
 ⚠️ **If `functional.sh` says "Something is already answering at http://localhost:8080", that
 is not a test failure and not a bug** — the developer has a server up (often for the phone).
 **Never `pkill` it to get your run through.** Either use `scripts/runManualFunctionalTests.sh`,
