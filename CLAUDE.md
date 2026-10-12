@@ -61,8 +61,21 @@ Examples: `Backend (Feat): add POST /notifications`, `Docs (Reorg): tidy Documen
 ```bash
 cmake --preset=dev          # configure (Debug + ASan/UBSan)
 cmake --build --preset=dev  # compile
-ctest --preset=dev          # run tests
+ctest --preset=dev          # C++ tiers only: unit + integration
+scripts/dev.sh functional   # Python functional tier (format → build → functional.sh)
 ```
+
+`ctest --preset=dev` does **not** include the functional tier — it's a pytest suite, so
+it isn't a CMake target or a CTest entry at all; there's nothing to configure or exclude.
+Before running it:
+
+- ⚠️ **Manual only, no CI job.** A regression there is caught only when someone runs it.
+  Wiring steps live in the `TODO(ci)` block atop `backend/scripts/functional.sh`.
+- ⚠️ **It `TRUNCATE`s the dev `notifications` table before every test** — dev data does
+  not survive a run.
+- ⚠️ **Never alongside a dev server or a `ctest` run.** The script refuses to start when
+  `:8080` is occupied, but the `ctest` clash is uncaught. To test against a server you
+  already have up, use `scripts/runManualFunctionalTests.sh` from `backend/scripts/`.
 **Mobile** (on the host, Flutter SDK installed):
 ```bash
 ./run_dev.sh                # physical device on the LAN (auto-detects host IP)

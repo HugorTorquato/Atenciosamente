@@ -185,8 +185,8 @@ Rule: we don't skip rungs prematurely.
 
 ```
     ┌─────────────────────────────┐   slow, realistic
-    │  Functional / E2E tests     │      (Phase 2+)
-    │  real HTTP + real Postgres  │
+    │  Functional / E2E tests     │      (Phase 3+)
+    │  real HTTP + real Postgres  │   Python/pytest, MANUAL ONLY
     ├─────────────────────────────┤
     │  Integration tests          │      (Phase 1+)
     │  repo layer + real DB       │
@@ -206,20 +206,37 @@ Rule: we don't skip rungs prematurely.
 │    build    │   (cached: vcpkg deps, docker layers, cmake build dir)
 └──────┬──────┘
        │
-       ├──────────┬──────────────┬──────────────┐
-       ▼          ▼              ▼              ▼
-  ┌────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐
-  │  unit  │  │integration│  │functional│  │ lint /   │
-  │ tests  │  │  tests   │   │  tests   │  │ format   │
-  └────────┘  └──────────┘  └──────────┘  └──────────┘
-              (Phase 1+)    (Phase 2+)
+       ├──────────────┬──────────────┬──────────────┐
+       ▼              ▼              ▼              ▼
+ ┌───────────┐  ┌───────────┐  ╷╌╌╌╌╌╌╌╌╌╌╌╷  ┌───────────┐
+ │    unit   │  │integration│  ╎ functional╎  │   lint /  │
+ │   tests   │  │   tests   │  ╎   tests   ╎  │   format  │
+ └───────────┘  └───────────┘  ╵╌╌╌╌╌╌╌╌╌╌╌╵  └───────────┘
+    (built)        (built)       NOT BUILT       (built)
 ```
+
+⚠️ **The `functional` box is dashed on purpose: that job does not exist.** The functional
+tier landed in Phase 3 but is **manual only** — nothing automated runs it, so a functional
+regression is caught only when someone runs the script by hand. This is a deliberate
+deferral, not an oversight: the exact wiring steps are in the `TODO(ci)` block at the top
+of `backend/scripts/functional.sh`, and §10's 2026-10-10 entries carry the reasoning.
+Phase 4 (auth, where an access-control regression is silent and serious) is the expected
+trigger to actually build it.
 
 ### Fixes for past CI pain
 
 - **Postgres as a GitHub Actions `services:` container**, not manually installed.
 - **Transaction-rollback test isolation** — `BEGIN` before each test, `ROLLBACK` after. No state leaks.
 - **Functional tests use the same `docker-compose.yml`** as local dev. Eliminates environment drift.
+- **The functional tier is a Python/pytest suite, not a CTest target** (`backend/tests/functional/`,
+  driven by `backend/scripts/functional.sh` or `scripts/dev.sh functional`). `ctest --preset=dev`
+  does **not** include it and needs no configuration to exclude it — the tier simply isn't a build
+  target. Two consequences to know before running it:
+  - ⚠️ **It `TRUNCATE`s the dev `notifications` table before every test.** Dev data does not
+    survive a run; re-POST anything the phone needs. See §10's 2026-10-10 isolation entry.
+  - ⚠️ **It must not run alongside a dev server or a `ctest` run.** The script refuses to start
+    when `:8080` is occupied, but the `ctest` clash is uncaught — its integration tests would
+    have rows yanked out from under an open transaction.
 - **Each tier in its own job** — one broken integration test doesn't hide a real unit test failure.
 - **Cache aggressively** — vcpkg and Docker layers keyed on `vcpkg.json` and Dockerfile hashes.
 - **Lint in parallel, not as a prerequisite.** `clang-format --dry-run --Werror` alongside tests.

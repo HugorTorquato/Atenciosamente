@@ -18,7 +18,8 @@ This document explains every folder and file in the repository and why it exists
 │   └── devcontainer.json   ← VS Code Dev Containers config (opens inside backend container)
 ├── .github/
 │   └── workflows/
-│       └── backend-ci.yml  ← GitHub Actions: build + unit tests on every push
+│       └── backend-ci.yml  ← GitHub Actions: unit + integration jobs on every push
+│                              (NO functional job — that tier is manual, see below)
 ├── backend/                ← C++ server (see below)
 ├── mobile/                 ← Flutter app (see below)
 └── Documentation/          ← architecture decisions, phase prompts, concept guides
@@ -32,7 +33,7 @@ The C++ Crow HTTP server and its build infrastructure.
 
 ```
 backend/
-├── Dockerfile.dev          ← dev image: ubuntu:24.04 + gcc-13 + clang-18 + vcpkg
+├── Dockerfile.dev          ← dev image: ubuntu:24.04 + gcc-13 + clang-18 + vcpkg + python3-venv
 ├── Dockerfile              ← multi-stage prod build (Phase 6+, not yet used)
 ├── CMakeLists.txt          ← top-level build definition
 ├── CMakePresets.json       ← named presets: dev (Debug+sanitizers), ci (Release)
@@ -44,7 +45,10 @@ backend/
 │   └── 0001_create_notifications.sql  ← SQL schema migration, applied by scripts/migrate.sh
 ├── scripts/
 │   ├── migrate.sh          ← idempotent migration runner (tracks applied migrations)
-│   └── dev.sh              ← `run` / `test` convenience wrapper, calls migrate.sh first
+│   ├── dev.sh              ← `run`/`test`/`build`/`migrate`/`functional` wrapper, calls migrate.sh first
+│   ├── functional.sh       ← runs the functional tier: venv → :8080 check → migrate →
+│   │                         background server → readiness poll → pytest → trap cleanup
+│   └── runManualFunctionalTests.sh  ← pytest against a server already running (run from scripts/)
 │
 ├── src/
 │   ├── main.cpp            ← entry point: creates App, calls run()
@@ -72,10 +76,20 @@ backend/
 │                                  layer between crow::request/response, domain/, and repository/
 │
 └── tests/
-    ├── CMakeLists.txt          ← defines tests_unit target, links atenciosamente_core
-    └── unit/
-        ├── notification_json_test.cpp            ← JSON serialization (response side)
-        └── create_notification_request_test.cpp  ← request validation (no DB, no Crow)
+    ├── CMakeLists.txt          ← defines tests_unit + tests_integration, links atenciosamente_core
+    ├── unit/                   ← Catch2, no DB. CTest prefix `unit/`
+    │   ├── notification_json_test.cpp            ← JSON serialization (response side)
+    │   └── create_notification_request_test.cpp  ← request validation (no DB, no Crow)
+    ├── integration/            ← Catch2, real Postgres. CTest prefix `integration/`
+    │   ├── repository/notification_repository_test.cpp  ← the real SQL, rollback-isolated
+    │   └── db/connection_pool_test.cpp                  ← ConnectionPool concurrency
+    └── functional/             ← Python/pytest. NOT a CMake target, NOT in CTest, NO CI job
+        ├── requirements.txt                 ← pytest + requests + psycopg[binary]
+        ├── conftest.py                      ← api/make_api clients, autouse clean_database
+        ├── test_smoke.py                    ← GET / answers
+        ├── test_notifications_api.py        ← the /notifications contract, black-box
+        └── test_concurrency.py              ← 80 parallel POSTs through a 2-connection pool
+        (.venv/ lives here too, gitignored, created by functional.sh on first run)
 ```
 
 ### Key backend concepts
@@ -111,8 +125,26 @@ without starting the server.
 # Inside the backend container (docker compose exec backend bash)
 cmake --preset=dev          # configure
 cmake --build --preset=dev  # compile
-ctest --preset=dev          # run tests
+ctest --preset=dev          # run the C++ tiers (unit + integration)
+scripts/dev.sh functional   # run the Python functional tier (NOT part of ctest)
 ```
+
+**The functional tier is the odd one out.** It's a Python/pytest suite, so it is not a
+CMake target and not a CTest entry — `ctest --preset=dev` excludes it by construction, not
+by configuration. Three things to know before running it:
+
+- ⚠️ **Manual only — there is no CI job.** A functional regression is caught only when
+  someone runs the script. The wiring steps for adding the job are in the `TODO(ci)` block
+  at the top of `backend/scripts/functional.sh`; `PROJECT_PLAN.md` §8 marks the box as
+  deliberately unbuilt.
+- ⚠️ **It `TRUNCATE`s the dev `notifications` table before every test.** Dev data does not
+  survive a run.
+- ⚠️ **Don't run it alongside a dev server or a `ctest` run.** The script refuses to start
+  while `:8080` is taken; the `ctest` clash is uncaught and would yank rows out from under
+  an open transaction.
+
+Full manual walkthrough:
+[`PHASE_3_FUNCTIONAL_END_TO_END_TESTS.md`](../phase-prompts/PHASE_3_FUNCTIONAL_END_TO_END_TESTS.md) §7.
 
 ---
 
