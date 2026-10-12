@@ -93,6 +93,14 @@ container-only — it cannot run from the WSL host (see its `TODO(host-run)`).
 - A task with no skill yet? Do it carefully by hand, then, if it's the kind of thing
   that will recur, propose adding a new `backend-*` skill that captures the procedure.
 
+## Adding a script to `backend/scripts/`
+This repo sets **`core.fileMode = false`**, so `chmod +x` on disk is invisible to git and a
+new script commits as `100644` — it then fails in CI and on any fresh clone with
+`Permission denied` (exit 126), while working perfectly in your own working tree. Set the bit
+in the index: `git update-index --chmod=+x backend/scripts/<name>.sh`, and verify with
+`git ls-files -s backend/scripts/` (expect `100755`) — **not** with `ls -l`, which shows the
+local bit git is ignoring.
+
 ## CI changes
 If you touch `.github/workflows/backend-ci.yml` (new job, new step, changed trigger), update
 the backend diagram in `.github/workflows/README.md` to match, in the same commit.
