@@ -6,7 +6,7 @@
 # OS process* that talks to the real atenciosamente_server over a real socket.
 # So something has to start a server, wait until it answers, run pytest against
 # it, and stop it again. That is all this script is — the manual dance from
-# PHASE_3_FUNCTIONAL_END_TO_END_TESTS.md §7.3, in one command.
+# PHASE_3_FUNCTIONAL_END_TO_END_TESTS.md §7.4, in one command.
 #
 # What it runs, in order:
 #   1. ensure the pytest venv exists (creates it + pip installs on first run)

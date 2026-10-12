@@ -322,7 +322,7 @@ possible test: `GET /` returns `200 "hello"`.
   - **Venv location.** Recommended: `backend/tests/functional/.venv`, gitignored. It's on
     the bind mount so it survives container restarts. Caveat to note: a venv built inside
     the container hardcodes container paths, so it is **not** reusable from the WSL host —
-    make a separate one there if you want the host workflow (§7.4).
+    make a separate one there if you want the host workflow (§7.5).
   - **No `pytest.ini`, no markers** (for now). With ~14 tests, `-k ordering` does what
     `-m post` would, with zero config. Add markers the first time `-k` is genuinely
     awkward, not before.
@@ -944,28 +944,38 @@ scripts/functional.sh
 What you should see:
 
 ```
-==> Creating venv at tests/functional/.venv          (first run only)
+==> Creating venv (tests/functional/.venv)           (first run only)
 ==> Database up to date
-==> Starting server on :8080 (pool=2, log: ./build/dev/functional-server.log)
-==> Running functional tests (pytest)
-================== test session starts ==================
-tests/functional/test_concurrency.py .
-tests/functional/test_notifications_api.py ............
-tests/functional/test_smoke.py .
-================== 14 passed in 3.41s ===================
+==> Starting server (dev, pool size 2) — log: build/dev/functional-server.log
+==> Waiting for http://localhost:8080
+==> Running pytest
+============================= test session starts ==============================
+collected 13 items
+
+tests/functional/test_notifications_api.py ............            [ 92%]
+tests/functional/test_smoke.py .                                   [100%]
+
+============================== 13 passed in 0.41s ==============================
+==> Functional suite passed
+==> Stopping server (pid 85576)
 ```
 
-(14 = 1 smoke + 1 concurrency + 12 contract tests, since S3's five 400 branches are one
-parametrized function reported as five cases.)
+(13 = 1 smoke + 12 contract tests, since S3's five 400 branches are one parametrized
+function reported as five cases. S4's concurrency test will make it 14.)
 
 Exit code `0` = green. Non-zero = a test failed, the server crashed or never became
-ready, `:8080` was occupied, or the server logged a sanitizer report. The script prints
-the server log in every failure case.
+ready, `:8080` was occupied, or the server logged a sanitizer report. **The script does
+not print the log in every failure case** — it cats the full log when the server dies
+during startup, and greps-and-prints on a sanitizer hit, but on an ordinary *pytest*
+failure it prints only the path (`==> FAILED (server log: build/dev/...)`), on the
+grounds that a long Crow access log would bury the pytest diff.
 
 **Your `notifications` table is empty afterwards.** That's the design, not a bug — if you
 want manual data back for the phone, POST it again with curl.
 
-**Run a subset** (everything after `--` goes to pytest):
+**Run a subset** (everything after `--` goes to pytest). Note this works on
+`functional.sh` only — `scripts/dev.sh functional -- ...` is rejected, because `dev.sh`'s
+argument loop has no `--` case (a deliberate choice: see §10's entry):
 
 ```bash
 scripts/functional.sh -- -k ordering -vv       # one test by name substring, verbose
@@ -973,7 +983,29 @@ scripts/functional.sh -- -k invalid            # the parametrized 400 branches
 scripts/functional.sh -- -x --lf               # stop at first failure; rerun last failures
 ```
 
-### 7.3 The step-by-step way (what the script does, by hand)
+### 7.3 Against a server you already have running
+
+`scripts/runManualFunctionalTests.sh` runs the suite against whatever is already serving
+`:8080`. It does **not** build, start or stop anything — and that is the point.
+`functional.sh` *refuses* to run while a server is up (§7.2: it would truncate the table
+that server is serving), so when you already have one running — for the phone, or in a
+second terminal under `gdb` — this is how you point the tests at it without tearing it
+down.
+
+```bash
+cd scripts && ./runManualFunctionalTests.sh         # 13 passed
+```
+
+Two sharp edges:
+
+- **It only runs from `backend/scripts/`.** Its paths are relative
+  (`../tests/functional/...`), so `./scripts/runManualFunctionalTests.sh` from
+  `backend/` fails with `No such file or directory`.
+- **It still destroys your data.** `clean_database` truncates before every test no
+  matter who started the server, so the rows that server was serving are gone. Same
+  trade as §7.2 — but without the occupancy check stopping you first.
+
+### 7.4 The step-by-step way (what the script does, by hand)
 
 Do this once to understand the moving parts, and whenever you need to debug with the
 server in the foreground or under `gdb`. This is also the shape you'd use if you prefer
@@ -982,7 +1014,9 @@ driving it yourself and skipping the script entirely.
 ```bash
 # 0. Make sure no other server is up — it would be serving the table you're about
 #    to truncate, and it would hold :8080.
-pgrep -a atenciosamente_server && pkill -TERM atenciosamente_server
+# (-af, not -a: the name is 21 chars and pgrep matches against comm, which the
+#  kernel truncates to 15, so `pgrep -a atenciosamente_server` NEVER matches.)
+pgrep -af atenciosamente_server && pkill -TERM atenciosamente_server
 
 # 1. Migrate (idempotent; a no-op unless the schema changed)
 scripts/migrate.sh
@@ -1012,7 +1046,11 @@ kill %1      # or: pkill -TERM atenciosamente_server
 `ATENCIOSAMENTE_BASE_URL` defaults to `http://localhost:8080`, so step 4 needs no env var
 as long as the server is on the default port. Set it if you moved the server.
 
-### 7.4 Optional: run pytest from the WSL host
+### 7.5 Optional: run pytest from the WSL host
+
+⚠️ `functional.sh` itself cannot run from the host at all — the venv hardcodes container
+paths and the server binary needs `libasan.so.8`. See its `TODO(host-run)`. What follows
+is the *standalone pytest* workflow, which does work, because no binary is involved.
 
 `docker-compose.yml` publishes both `5432` and `8080`, so the suite can run outside the
 container entirely — useful if you prefer your host editor's Python tooling. The **server
@@ -1031,14 +1069,14 @@ export POSTGRES_DB=atenciosamente_dev
 ~/.venvs/atenciosamente-functional/bin/pytest tests/functional
 ```
 
-### 7.5 Housekeeping & troubleshooting
+### 7.6 Housekeeping & troubleshooting
 
 | Symptom | Cause / fix |
 |---|---|
 | `Something is already serving on :8080` | A dev server is up. Stop it (`pkill -TERM atenciosamente_server`) — the suite truncates the table it's serving, so they can't share. |
 | `ensurepip is not available` | `python3-venv` missing — pre-S1 container. `sudo apt-get update && sudo apt-get install -y python3-venv`, or rebuild the image. |
 | `error: externally-managed-environment` | You ran `pip install` outside the venv (PEP 668). Use `tests/functional/.venv/bin/pip`, never `--break-system-packages`. |
-| `ConnectionError` in every test | No server on `ATENCIOSAMENTE_BASE_URL`. Start it (7.3 step 2) or use the script. |
+| `ConnectionError` in every test | No server on `ATENCIOSAMENTE_BASE_URL`. Start it (7.4 step 2), or use the script. |
 | `Server exited during startup` | Read the printed log. Usually Postgres isn't reachable, or `POSTGRES_*` is unset in your shell. |
 | My dev data is gone | Expected — every test truncates `notifications`. Re-POST what you need. Data management is a later phase. |
 | An integration test failed weirdly during a functional run | You ran `ctest` and the suite concurrently. The `TRUNCATE` hit a transaction mid-flight. Run them one at a time. |
