@@ -8,8 +8,6 @@ DEFAULT_BASE_URL = "http://localhost:8080"
 
 
 class ApiClient:
-    # requests applies no default timeout, and there is no CTest backstop here:
-    # without these a hung server hangs the whole suite indefinitely.
     TIMEOUT = (2, 5)  # (connect, read) seconds
 
     def __init__(self, base_url):
@@ -19,8 +17,6 @@ class ApiClient:
     def get(self, path):
         return self._session.get(self._base_url + path, timeout=self.TIMEOUT)
 
-    # body is a raw str, never a dict: several cases must send bodies json.dumps
-    # could not produce ("not json", a bare "[]").
     def post(self, path, body):
         return self._session.post(
             self._base_url + path,
@@ -63,6 +59,17 @@ def db_url():
 def clean_database(db_url):
     with psycopg.connect(db_url, autocommit=True) as conn:
         conn.execute("TRUNCATE notifications RESTART IDENTITY")
+
+
+# Runs once: everything after the yield executes after the last test has finished.
+# Only cleans up when the whole run passed, so a failing run still leaves its rows
+# behind for inspection, as clean_database intends.
+@pytest.fixture(scope="session", autouse=True)
+def final_teardown(request, db_url):
+    yield
+    if request.session.testsfailed == 0:
+        with psycopg.connect(db_url, autocommit=True) as conn:
+            conn.execute("TRUNCATE notifications RESTART IDENTITY")
 
 
 @pytest.fixture

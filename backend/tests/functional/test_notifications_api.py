@@ -38,7 +38,10 @@ def test_get_notifications_on_empty_database_returns_empty_array(api):
 
 
 def test_post_valid_notification_returns_201_with_server_generated_fields(api):
-    res = post_notification(api, "Dentist", "Tuesday at 10h")
+    title = "Dentist"
+    body = "Tuesday at 10h"
+
+    res = post_notification(api, title, body)
 
     assert res.status_code == 201
     assert res.headers["Content-Type"] == JSON_CONTENT_TYPE
@@ -48,8 +51,8 @@ def test_post_valid_notification_returns_201_with_server_generated_fields(api):
     # is the only tier that can assert the database really assigned them.
     assert created["id"] > 0
     assert CREATED_AT_PATTERN.match(created["created_at"])
-    assert created["title"] == "Dentist"
-    assert created["body"] == "Tuesday at 10h"
+    assert created["title"] == title
+    assert created["body"] == body
 
 
 def test_posted_notification_comes_back_from_get(api):
@@ -65,8 +68,11 @@ def test_posted_notification_comes_back_from_get(api):
 
 
 def test_get_returns_newest_notification_first(api):
-    first = post_notification(api, "A", "older").json()
-    second = post_notification(api, "B", "newer").json()
+    first_title = "A"
+    second_title = "B"
+
+    first = post_notification(api, first_title, "older").json()
+    second = post_notification(api, second_title, "newer").json()
 
     listed = api.get("/notifications").json()
 
@@ -74,7 +80,7 @@ def test_get_returns_newest_notification_first(api):
     # here, so it is the id tie-break doing the work — which is exactly why the
     # tie-break is in the query: without it this ordering would be arbitrary.
     assert [n["id"] for n in listed] == [second["id"], first["id"]]
-    assert [n["title"] for n in listed] == ["B", "A"]
+    assert [n["title"] for n in listed] == [second_title, first_title]
 
 
 # The messages are owned by src/domain/create_notification_request.cpp (plus the
